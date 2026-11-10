@@ -1,0 +1,191 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-10 06:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "conversation",
+  "role",
+  "status",
+  "col_1",
+  "run_id",
+  "model",
+  "duration_ms",
+  "sec_content",
+  "content",
+  "error",
+  "sec_usage",
+  "input_tokens",
+  "output_tokens",
+  "col_2",
+  "cache_read_tokens",
+  "web_searches",
+  "sec_raw",
+  "ui",
+  "api_messages",
+  "attachments",
+  "page_context",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "conversation",
+   "fieldtype": "Link",
+   "label": "Conversation",
+   "options": "AI Assistant Conversation",
+   "reqd": 1,
+   "search_index": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "role",
+   "fieldtype": "Select",
+   "label": "Role",
+   "options": "user\nassistant",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Complete\nRunning\nStopped\nError",
+   "default": "Complete",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "col_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "run_id",
+   "fieldtype": "Data",
+   "label": "Run ID",
+   "search_index": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "read_only": 1
+  },
+  {
+   "fieldname": "duration_ms",
+   "fieldtype": "Int",
+   "label": "Duration (ms)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_content",
+   "fieldtype": "Section Break",
+   "label": "Content"
+  },
+  {
+   "fieldname": "content",
+   "fieldtype": "Long Text",
+   "label": "Content"
+  },
+  {
+   "fieldname": "error",
+   "fieldtype": "Small Text",
+   "label": "Error",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_usage",
+   "fieldtype": "Section Break",
+   "label": "Usage"
+  },
+  {
+   "fieldname": "input_tokens",
+   "fieldtype": "Int",
+   "label": "Input Tokens",
+   "read_only": 1
+  },
+  {
+   "fieldname": "output_tokens",
+   "fieldtype": "Int",
+   "label": "Output Tokens",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cache_read_tokens",
+   "fieldtype": "Int",
+   "label": "Cached Input Tokens",
+   "read_only": 1
+  },
+  {
+   "fieldname": "web_searches",
+   "fieldtype": "Int",
+   "label": "Web Searches",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_raw",
+   "fieldtype": "Section Break",
+   "label": "Technical",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "ui",
+   "fieldtype": "Long Text",
+   "label": "Display Parts (JSON)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "api_messages",
+   "fieldtype": "Long Text",
+   "label": "API Messages (JSON)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "attachments",
+   "fieldtype": "Small Text",
+   "label": "Attachments (JSON)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "page_context",
+   "fieldtype": "Small Text",
+   "label": "Page Context (JSON)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "System Notes (JSON)",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-10 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "AI Assistant",
+ "name": "AI Assistant Message",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "AI Assistant User",
+   "read": 1,
+   "if_owner": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

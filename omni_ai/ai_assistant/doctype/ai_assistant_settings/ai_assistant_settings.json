@@ -1,0 +1,421 @@
+{
+ "actions": [],
+ "creation": "2026-11-10 06:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "tab_general",
+  "enabled",
+  "sec_provider",
+  "api_key",
+  "base_url",
+  "col_provider",
+  "model",
+  "effort",
+  "max_tokens",
+  "sec_runtime",
+  "execution_mode",
+  "request_timeout",
+  "col_runtime",
+  "prompt_caching",
+  "title_model",
+  "tab_branding",
+  "brand_name",
+  "brand_logo",
+  "accent_color",
+  "col_brand",
+  "launcher_position",
+  "disclose_provider",
+  "sec_welcome",
+  "welcome_title",
+  "welcome_message",
+  "suggested_prompts",
+  "sec_instructions",
+  "company_instructions",
+  "tab_capabilities",
+  "sec_data",
+  "enable_sql",
+  "sql_roles",
+  "col_data",
+  "enable_reports",
+  "enable_file_uploads",
+  "enable_exports",
+  "sec_reports",
+  "enable_report_creation",
+  "report_save_roles",
+  "col_reports",
+  "add_reports_to_workspace",
+  "reports_workspace",
+  "sec_actions",
+  "enable_write_actions",
+  "col_actions",
+  "enable_web_search",
+  "web_search_max_uses",
+  "tab_limits",
+  "daily_message_limit",
+  "max_tool_rounds",
+  "max_rows",
+  "col_limits",
+  "history_turns",
+  "retention_days",
+  "log_tool_calls"
+ ],
+ "fields": [
+  {
+   "fieldname": "tab_general",
+   "fieldtype": "Tab Break",
+   "label": "Connection"
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enable Assistant",
+   "default": "1"
+  },
+  {
+   "fieldname": "sec_provider",
+   "fieldtype": "Section Break",
+   "label": "AI Provider"
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key",
+   "description": "Claude API key from console.anthropic.com. Stored encrypted; never sent to the browser."
+  },
+  {
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "label": "API Base URL",
+   "default": "https://api.anthropic.com",
+   "description": "Change only if you route requests through your own gateway or proxy."
+  },
+  {
+   "fieldname": "col_provider",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "default": "claude-opus-5-5",
+   "description": "Model ID, for example claude-opus-5-5, claude-sonnet-5-5, claude-haiku-5-5 or claude-fable-5-2. Use Test Connection to list the models your key can use."
+  },
+  {
+   "fieldname": "effort",
+   "fieldtype": "Select",
+   "label": "Reasoning Effort",
+   "options": "\nlow\nmedium\nhigh\nxhigh\nmax",
+   "description": "Leave blank to use the model default. Higher effort is slower and uses more tokens."
+  },
+  {
+   "fieldname": "max_tokens",
+   "fieldtype": "Int",
+   "label": "Max Output Tokens",
+   "default": "16000"
+  },
+  {
+   "fieldname": "sec_runtime",
+   "fieldtype": "Section Break",
+   "label": "Runtime"
+  },
+  {
+   "fieldname": "execution_mode",
+   "fieldtype": "Select",
+   "label": "Execution Mode",
+   "options": "Background Worker\nInline",
+   "default": "Background Worker",
+   "description": "Background Worker is recommended. Use Inline only on sites that run without background workers."
+  },
+  {
+   "fieldname": "request_timeout",
+   "fieldtype": "Int",
+   "label": "Request Timeout (seconds)",
+   "default": "600"
+  },
+  {
+   "fieldname": "col_runtime",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "prompt_caching",
+   "fieldtype": "Check",
+   "label": "Prompt Caching",
+   "default": "1",
+   "description": "Reduces cost and latency on long conversations. Turn off if your gateway rejects the cache_control field."
+  },
+  {
+   "fieldname": "title_model",
+   "fieldtype": "Data",
+   "label": "Model for Conversation Titles",
+   "default": "claude-haiku-5-5",
+   "description": "A small, fast model used only to name conversations. Leave blank to skip automatic titles."
+  },
+  {
+   "fieldname": "tab_branding",
+   "fieldtype": "Tab Break",
+   "label": "Branding"
+  },
+  {
+   "fieldname": "brand_name",
+   "fieldtype": "Data",
+   "label": "Assistant Name",
+   "default": "Assistant",
+   "reqd": 1
+  },
+  {
+   "fieldname": "brand_logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo",
+   "description": "Square image, shown in the launcher and chat header."
+  },
+  {
+   "fieldname": "accent_color",
+   "fieldtype": "Color",
+   "label": "Accent Color",
+   "default": "#4F46E5"
+  },
+  {
+   "fieldname": "col_brand",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "launcher_position",
+   "fieldtype": "Select",
+   "label": "Launcher Position",
+   "options": "Bottom Right\nBottom Left\nHidden",
+   "default": "Bottom Right",
+   "description": "Hidden removes the floating button; the assistant still opens with Ctrl+. and from its page."
+  },
+  {
+   "fieldname": "disclose_provider",
+   "fieldtype": "Check",
+   "label": "Tell Users Which AI Model Is Used",
+   "default": "0",
+   "description": "When off, the assistant introduces itself only by the name above."
+  },
+  {
+   "fieldname": "sec_welcome",
+   "fieldtype": "Section Break",
+   "label": "Welcome Screen"
+  },
+  {
+   "fieldname": "welcome_title",
+   "fieldtype": "Data",
+   "label": "Welcome Title",
+   "default": "How can I help you today?"
+  },
+  {
+   "fieldname": "welcome_message",
+   "fieldtype": "Small Text",
+   "label": "Welcome Message",
+   "default": "Ask about your data, request a report, or get help with anything."
+  },
+  {
+   "fieldname": "suggested_prompts",
+   "fieldtype": "Small Text",
+   "label": "Suggested Prompts",
+   "description": "One per line. Shown as shortcuts on the welcome screen.",
+   "default": "Show me sales by month for this year as a chart\nWhich customers have overdue invoices?\nBuild a report of stock below reorder level\nSummarise the document I am looking at"
+  },
+  {
+   "fieldname": "sec_instructions",
+   "fieldtype": "Section Break",
+   "label": "Behaviour"
+  },
+  {
+   "fieldname": "company_instructions",
+   "fieldtype": "Text",
+   "label": "Company Instructions",
+   "description": "Standing instructions for every conversation: tone, terminology, fiscal year rules, what to avoid."
+  },
+  {
+   "fieldname": "tab_capabilities",
+   "fieldtype": "Tab Break",
+   "label": "Capabilities"
+  },
+  {
+   "fieldname": "sec_data",
+   "fieldtype": "Section Break",
+   "label": "Data Access"
+  },
+  {
+   "fieldname": "enable_sql",
+   "fieldtype": "Check",
+   "label": "Allow Read-only SQL",
+   "default": "1",
+   "description": "Lets permitted users have the assistant run SELECT queries for analysis that needs joins. SQL does not apply row-level User Permissions, so limit it to trusted roles."
+  },
+  {
+   "fieldname": "sql_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Roles Allowed to Use SQL",
+   "options": "AI Assistant Role",
+   "depends_on": "enable_sql"
+  },
+  {
+   "fieldname": "col_data",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enable_reports",
+   "fieldtype": "Check",
+   "label": "Allow Running Existing Reports",
+   "default": "1"
+  },
+  {
+   "fieldname": "enable_file_uploads",
+   "fieldtype": "Check",
+   "label": "Allow File Attachments",
+   "default": "1"
+  },
+  {
+   "fieldname": "enable_exports",
+   "fieldtype": "Check",
+   "label": "Allow Excel and CSV Exports",
+   "default": "1"
+  },
+  {
+   "fieldname": "sec_reports",
+   "fieldtype": "Section Break",
+   "label": "Report Builder"
+  },
+  {
+   "fieldname": "enable_report_creation",
+   "fieldtype": "Check",
+   "label": "Allow Saving Reports",
+   "default": "1",
+   "description": "The assistant drafts and previews a report; it is saved only when the user clicks Save."
+  },
+  {
+   "fieldname": "report_save_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Roles Allowed to Save Query Reports",
+   "options": "AI Assistant Role",
+   "depends_on": "enable_report_creation",
+   "description": "Query Reports contain SQL. Other users can still save Report Builder reports, which follow normal permissions."
+  },
+  {
+   "fieldname": "col_reports",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "add_reports_to_workspace",
+   "fieldtype": "Check",
+   "label": "Add Saved Reports to a Workspace",
+   "default": "1",
+   "depends_on": "enable_report_creation"
+  },
+  {
+   "fieldname": "reports_workspace",
+   "fieldtype": "Data",
+   "label": "Workspace Name",
+   "default": "AI Reports",
+   "depends_on": "add_reports_to_workspace"
+  },
+  {
+   "fieldname": "sec_actions",
+   "fieldtype": "Section Break",
+   "label": "Actions"
+  },
+  {
+   "fieldname": "enable_write_actions",
+   "fieldtype": "Check",
+   "label": "Allow Creating and Updating Documents",
+   "default": "1",
+   "description": "Every change is shown to the user first and runs with their own permissions only after they confirm."
+  },
+  {
+   "fieldname": "col_actions",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enable_web_search",
+   "fieldtype": "Check",
+   "label": "Allow Web Search",
+   "default": "0",
+   "description": "Lets the assistant look up current information online. Billed by your AI provider per search."
+  },
+  {
+   "fieldname": "web_search_max_uses",
+   "fieldtype": "Int",
+   "label": "Max Searches per Reply",
+   "default": "5",
+   "depends_on": "enable_web_search"
+  },
+  {
+   "fieldname": "tab_limits",
+   "fieldtype": "Tab Break",
+   "label": "Limits and Logs"
+  },
+  {
+   "fieldname": "daily_message_limit",
+   "fieldtype": "Int",
+   "label": "Daily Messages per User",
+   "default": "0",
+   "description": "0 means unlimited."
+  },
+  {
+   "fieldname": "max_tool_rounds",
+   "fieldtype": "Int",
+   "label": "Max Steps per Reply",
+   "default": "25"
+  },
+  {
+   "fieldname": "max_rows",
+   "fieldtype": "Int",
+   "label": "Max Rows per Query",
+   "default": "5000"
+  },
+  {
+   "fieldname": "col_limits",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "history_turns",
+   "fieldtype": "Int",
+   "label": "Conversation Turns Kept in Context",
+   "default": "20",
+   "description": "Older turns are summarised to keep cost down."
+  },
+  {
+   "fieldname": "retention_days",
+   "fieldtype": "Int",
+   "label": "Delete Conversations After (days)",
+   "default": "0",
+   "description": "0 keeps them forever."
+  },
+  {
+   "fieldname": "log_tool_calls",
+   "fieldtype": "Check",
+   "label": "Keep an Audit Log of Data Access",
+   "default": "1"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-11-10 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "AI Assistant",
+ "name": "AI Assistant Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "share": 1,
+   "export": 1,
+   "report": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
