@@ -476,11 +476,18 @@
 
 	function action_view(part, chat) {
 		const is_report = part.action_type === "Save Report";
+		const kinds = {
+			"Save Report": { kicker: __("Report draft"), confirm: __("Save report"), open: __("Open report"), icon: ICONS.doc },
+			"Save Memory": { kicker: __("Remember this?"), confirm: __("Remember"), open: __("Open"), icon: ICONS.spark },
+			"Create Schedule": { kicker: __("Scheduled task"), confirm: __("Schedule it"), open: __("Open schedule"), icon: ICONS.history },
+			"Run Automation": { kicker: __("Run this automation?"), confirm: __("Run"), open: __("Open"), icon: ICONS.link },
+		};
+		const kind = kinds[part.action_type] || { kicker: __("Needs your confirmation"), confirm: __("Confirm"), open: __("Open"), icon: ICONS.edit };
 		const node = el(`<div class="omni-card omni-action" data-status="${esc(part.status || "Pending")}">
 			<div class="omni-action-head">
-				<span class="omni-action-icon">${is_report ? ICONS.doc : ICONS.edit}</span>
+				<span class="omni-action-icon">${kind.icon}</span>
 				<div class="omni-action-titles">
-					<div class="omni-action-kicker">${esc(is_report ? __("Report draft") : __("Needs your confirmation"))}</div>
+					<div class="omni-action-kicker">${esc(kind.kicker)}</div>
 					<div class="omni-card-title" dir="auto">${esc(part.title || "")}</div>
 					${part.subtitle ? `<div class="omni-action-sub" dir="auto">${esc(part.subtitle)}</div>` : ""}
 				</div>
@@ -493,6 +500,18 @@
 		if (part.columns && part.rows) {
 			body.appendChild(el(`<div class="omni-action-label">${esc(__("Preview"))}</div>`));
 			body.appendChild(table_view({ columns: part.columns, rows: part.rows, total_rows: part.total_rows }, { compact: true }));
+		}
+		if (part.review && part.review.status === "issues" && (part.review.notes || []).length) {
+			const box = el(`<div class="omni-review is-warn"><div class="omni-review-title">${ICONS.warn}<span>${esc(__("Reviewer notes: check before saving"))}</span></div><ul></ul></div>`);
+			part.review.notes.forEach((note) => {
+				const li = document.createElement("li");
+				li.setAttribute("dir", "auto");
+				li.textContent = note;
+				box.querySelector("ul").appendChild(li);
+			});
+			body.appendChild(box);
+		} else if (part.review && part.review.status === "ok") {
+			body.appendChild(el(`<div class="omni-review is-ok">${ICONS.check}<span>${esc(__("An independent review found no logic problems."))}</span></div>`));
 		}
 		const plain = (part.details || []).filter((d) => !d.code);
 		const code = (part.details || []).filter((d) => d.code);
@@ -516,7 +535,7 @@
 			node.setAttribute("data-status", status);
 			foot.replaceChildren();
 			if (status === "Pending") {
-				const confirm_label = is_report ? __("Save report") : __("Confirm");
+				const confirm_label = kind.confirm;
 				const ok = el(`<button class="omni-btn ${part.danger ? "is-danger" : "is-primary"}">${esc(confirm_label)}</button>`);
 				const no = el(`<button class="omni-btn is-ghost">${esc(__("Dismiss"))}</button>`);
 				ok.addEventListener("click", () => {
@@ -551,7 +570,7 @@
 			} else if (status === "Completed") {
 				foot.appendChild(el(`<span class="omni-state is-ok">${ICONS.check}<span dir="auto">${esc(part.result || __("Done"))}</span></span>`));
 				if (part.route) {
-					const open = el(`<a class="omni-btn is-primary" href="${esc(part.route)}" data-omni-route="${esc(part.route)}">${esc(is_report ? __("Open report") : __("Open"))}</a>`);
+					const open = el(`<a class="omni-btn is-primary" href="${esc(part.route)}" data-omni-route="${esc(part.route)}">${esc(kind.open)}</a>`);
 					foot.appendChild(open);
 				}
 			} else if (status === "Failed") {
@@ -623,7 +642,15 @@
 				node = el(`<div class="omni-text" dir="auto"></div>`);
 				node.innerHTML = markdown(part.text);
 				this.decorate(node);
-				this.body.appendChild(node);
+				if (part.draft) {
+					// a draft that was replaced after a figure check: keep it, folded away
+					let box = this.body.lastElementChild;
+					if (!box || !box.classList.contains("omni-draft")) {
+						box = el(`<details class="omni-draft"><summary>${esc(__("Earlier draft (replaced after a figure check)"))}</summary></details>`);
+						this.body.appendChild(box);
+					}
+					box.appendChild(node);
+				} else this.body.appendChild(node);
 			} else if (part.type === "tool") {
 				const group = this.step_group();
 				node = el(`<li data-status="${esc(part.status || "running")}"><span class="omni-step-icon"></span><span class="omni-step-label" dir="auto"></span><span class="omni-step-sum"></span></li>`);
@@ -646,7 +673,12 @@
 			} else if (part.type === "sources") {
 				node = sources_view(part);
 				this.body.appendChild(node);
+			} else if (part.type === "notice") {
+				node = el(`<div class="omni-notice">${ICONS.warn}<span dir="auto"></span></div>`);
+				node.querySelector("span").textContent = part.text || "";
+				this.body.appendChild(node);
 			}
+
 			if (node && part.id) this.nodes.set(part.id, node);
 			return node;
 		}
@@ -667,7 +699,24 @@
 			if (part.type === "tool") {
 				this.paint_step(node, part);
 				this.refresh_group(node.closest(".omni-steps"));
+			} else if (part.type === "action") {
+				const fresh = action_view(part, this.chat);
+				node.replaceWith(fresh);
+				this.nodes.set(id, fresh);
 			}
+		}
+
+		/** The assistant is redoing its answer after a failed figure check: fold the draft away. */
+		retract() {
+			const drafts = Array.from(this.body.children).filter((n) => n.classList.contains("omni-text"));
+			if (!drafts.length) return;
+			const box = el(`<details class="omni-draft"><summary>${esc(__("Earlier draft (replaced after a figure check)"))}</summary></details>`);
+			drafts[0].before(box);
+			drafts.forEach((n) => box.appendChild(n));
+			this.parts.forEach((p) => p.type === "text" && (p.draft = true));
+			// the next text must start a new part instead of continuing the draft
+			this.parts.push({ type: "break" });
+			this.live = null;
 		}
 
 		append_text(delta) {
@@ -724,7 +773,7 @@
 		}
 
 		text() {
-			return this.parts.filter((p) => p.type === "text").map((p) => p.text).join("\n\n");
+			return this.parts.filter((p) => p.type === "text" && !p.draft).map((p) => p.text).join("\n\n");
 		}
 
 		finish(restoring) {
@@ -1275,9 +1324,12 @@
 				this.stick();
 			} else if (ev.t === "part_update") {
 				view.update_part(ev.id, ev.patch || {});
+			} else if (ev.t === "retract") {
+				view.retract();
 			} else if (ev.t === "status") {
 				const last = view.parts[view.parts.length - 1];
-				if (!last || last.type !== "text" || !view.live) view.set_status(__("Thinking…"));
+				if (ev.s === "checking") view.set_status(__("Checking the figures…"));
+				else if (!last || last.type !== "text" || !view.live) view.set_status(__("Thinking…"));
 			} else if (ev.t === "error") {
 				view.show_error(ev.message);
 			} else if (ev.t === "title") {

@@ -20,6 +20,8 @@ MAX_PDF_BYTES = 20_000_000
 MAX_TEXT_CHARS = 150_000
 MAX_SHEET_ROWS = 1500
 MAX_FILES = 8
+MAX_FILE_BYTES = 25_000_000
+MAX_UNZIPPED_BYTES = 150_000_000  # .xlsx and .docx are zip archives: refuse decompression bombs
 ALLOWED = set(IMAGE_TYPES) | TEXT_TYPES | SHEET_TYPES | {"pdf", "docx"}
 
 
@@ -39,6 +41,8 @@ def validate_attachments(file_names, user: str) -> list:
 		ext = extension(doc.file_name)
 		if ext not in ALLOWED:
 			frappe.throw(f"Files of type .{ext} are not supported in the assistant.")
+		if (doc.file_size or 0) > MAX_FILE_BYTES:
+			frappe.throw(f"{doc.file_name} is larger than {MAX_FILE_BYTES // 1_000_000} MB.")
 		refs.append({"file": doc.name, "file_name": doc.file_name, "file_url": doc.file_url, "size": doc.file_size})
 	return refs
 
@@ -90,8 +94,18 @@ def _blocks_for(file_doc, name: str) -> list:
 	return [{"type": "text", "text": f"Attached file: {name}\n\n{clip(text, MAX_TEXT_CHARS)}"}]
 
 
+def _check_archive(data: bytes):
+	import zipfile
+
+	with zipfile.ZipFile(io.BytesIO(data)) as archive:
+		if sum(info.file_size for info in archive.infolist()) > MAX_UNZIPPED_BYTES:
+			raise ValueError("the file expands to more data than the assistant accepts")
+
+
 def _sheet_text(data: bytes) -> str:
 	from openpyxl import load_workbook
+
+	_check_archive(data)
 
 	workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
 	out = []
@@ -116,6 +130,7 @@ def _docx_text(data: bytes) -> str:
 	import re
 	import zipfile
 
+	_check_archive(data)
 	with zipfile.ZipFile(io.BytesIO(data)) as archive:
 		xml = archive.read("word/document.xml").decode("utf-8", errors="replace")
 	xml = re.sub(r"</w:p>", "\n", xml)

@@ -13,7 +13,11 @@ frappe.pages["ai-assistant"].on_page_load = function (wrapper) {
 		)}</div>`;
 		return;
 	}
+	const features = (frappe.boot.omni_ai && frappe.boot.omni_ai.features) || {};
+	if (features.memory) page.add_menu_item(__("Memory"), () => frappe.set_route("List", "AI Assistant Memory"));
+	if (features.schedules) page.add_menu_item(__("Scheduled Tasks"), () => frappe.set_route("List", "AI Assistant Schedule"));
 	if (frappe.user.has_role("System Manager")) {
+		page.add_menu_item(__("Automations"), () => frappe.set_route("List", "AI Assistant Automation"));
 		page.add_menu_item(__("Assistant Settings"), () => frappe.set_route("Form", "AI Assistant Settings"));
 		page.add_menu_item(__("Data Access Log"), () => frappe.set_route("List", "AI Assistant Tool Log"));
 	}

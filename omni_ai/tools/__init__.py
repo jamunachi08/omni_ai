@@ -7,9 +7,21 @@ from omni_ai.utils import clip, dumps, to_int
 
 
 def all_tools() -> list:
-	from omni_ai.tools import actions, data, display, reports, sql
+	from omni_ai.tools import actions, automation, data, display, memory, reports, schedule, sql
 
-	return [*data.TOOLS, *reports.TOOLS, *sql.TOOLS, *display.TOOLS, *actions.TOOLS]
+	return [
+		*data.TOOLS,
+		*reports.TOOLS,
+		*sql.TOOLS,
+		*display.TOOLS,
+		*actions.TOOLS,
+		*memory.TOOLS,
+		*schedule.TOOLS,
+		*automation.TOOLS,
+	]
+
+
+DATA_TOOLS = {"query_data", "run_sql", "run_report", "get_document", "find_documents"}
 
 
 def available_tools(ctx: ToolContext) -> dict:
@@ -35,6 +47,10 @@ def describe_call(tool, args: dict) -> str:
 		subject = args.get("query") or args.get("doctype") or ""
 	if tool.name in ("show_chart", "show_table", "export_data", "run_sql"):
 		subject = args.get("title") or args.get("filename") or ""
+	if tool.name == "remember":
+		subject = ""
+	if tool.name == "trigger_automation":
+		subject = args.get("automation") or ""
 	if tool.name == "propose_document_action":
 		return f"Preparing to {args.get('action', 'change')} {args.get('doctype', '')}".strip()
 	return f"{tool.label} {subject}".strip()
@@ -73,6 +89,8 @@ def execute_tool(ctx: ToolContext, tools: dict, name: str, args: dict) -> tuple:
 
 	if isinstance(result, dict):
 		rows = to_int(result.get("total_rows"), 0)
+	if not error and name in DATA_TOOLS:
+		ctx.data_tools_used += 1
 	_log(ctx, name, args, status, error, timer.ms, rows)
 
 	if error:

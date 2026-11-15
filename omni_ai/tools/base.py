@@ -38,7 +38,10 @@ class Tool:
 class ToolContext:
 	"""Everything a tool needs. One instance per assistant reply."""
 
-	def __init__(self, user, conversation, stream=None, parts=None):
+	def __init__(self, user, conversation, stream=None, parts=None, unattended=False):
+		self.unattended = unattended  # scheduled run: nobody is there to confirm cards
+		self.results = []  # full result sets produced in this reply (used to check quoted figures)
+		self.data_tools_used = 0
 		self.user = user
 		self.conversation = conversation
 		self.stream = stream
@@ -66,6 +69,8 @@ class ToolContext:
 		"""Keep a full result set server-side so later tools (table, chart, export) can reuse it
 		without the model having to repeat the rows."""
 		result_id = "r" + frappe.generate_hash(length=5)
+		if len(self.results) < 40:
+			self.results.append({"columns": columns, "rows": rows})
 		frappe.cache.set_value(
 			self._result_key(result_id),
 			{"columns": columns, "rows": rows, "title": title},

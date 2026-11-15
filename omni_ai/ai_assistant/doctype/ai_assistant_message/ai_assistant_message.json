@@ -1,7 +1,7 @@
 {
  "actions": [],
  "autoname": "hash",
- "creation": "2026-11-10 06:00:00.000000",
+ "creation": "2026-11-15 15:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -26,7 +26,8 @@
   "api_messages",
   "attachments",
   "page_context",
-  "notes"
+  "notes",
+  "memory"
  ],
  "fields": [
   {
@@ -161,11 +162,17 @@
    "fieldtype": "Small Text",
    "label": "System Notes (JSON)",
    "read_only": 1
+  },
+  {
+   "fieldname": "memory",
+   "fieldtype": "Small Text",
+   "label": "Recalled Memory (JSON)",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-10 06:00:00.000000",
+ "modified": "2026-11-15 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "AI Assistant",
  "name": "AI Assistant Message",

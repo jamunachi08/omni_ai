@@ -25,6 +25,8 @@ def daily_cleanup():
 def delete_conversation_data(name: str):
 	frappe.db.delete("AI Assistant Message", {"conversation": name})
 	frappe.db.delete("AI Assistant Action", {"conversation": name})
+	frappe.db.set_value("AI Assistant Memory", {"source_conversation": name}, "source_conversation", None, update_modified=False)
+	frappe.db.set_value("AI Assistant Schedule", {"last_conversation": name}, "last_conversation", None, update_modified=False)
 	for file_name in frappe.get_all(
 		"File",
 		filters={"attached_to_doctype": "AI Assistant Conversation", "attached_to_name": name},

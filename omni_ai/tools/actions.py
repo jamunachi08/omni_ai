@@ -24,6 +24,14 @@ PERMISSION_FOR = {"create": "create", "update": "write", "submit": "submit", "ca
 # Configuration, code and security DocTypes are out of reach: the assistant works on business records.
 BLOCKED_MODULES = {"Core", "Custom", "Integrations", "Workflow", "Printing", "Website", "Email", "AI Assistant"}
 ALLOWED_IN_BLOCKED_MODULES = set()
+# DocTypes in otherwise ordinary modules that hold code, markup or site-wide behaviour.
+BLOCKED_DOCTYPES = {
+	"System Console", "Bulk Update", "Dashboard Chart", "Dashboard Chart Source", "Number Card", "Workspace",
+	"Custom HTML Block", "Form Tour", "Module Onboarding", "Onboarding Step", "Global Search Settings",
+	"List View Settings", "Kanban Board", "Auto Repeat", "Assignment Rule", "Milestone Tracker",
+	"Energy Point Rule", "Energy Point Settings", "Web Form", "Server Script", "Client Script", "Report",
+	"Print Format", "Letter Head", "Address Template", "Notification", "Email Template", "Auto Email Report",
+}  # fmt: skip
 
 
 def create_action(ctx, action_type: str, title: str, payload: dict):
@@ -46,7 +54,7 @@ def create_action(ctx, action_type: str, title: str, payload: dict):
 
 
 def _check_writable(meta):
-	if meta.module in BLOCKED_MODULES and meta.name not in ALLOWED_IN_BLOCKED_MODULES:
+	if (meta.module in BLOCKED_MODULES and meta.name not in ALLOWED_IN_BLOCKED_MODULES) or meta.name in BLOCKED_DOCTYPES:
 		raise ToolError(
 			f"{meta.name} is a system or configuration DocType. The assistant only changes business records; "
 			"tell the user to make this change in the desk.",
@@ -188,6 +196,22 @@ def execute_action(action_name: str, user: str) -> dict:
 		message = f"Report '{result['name']}' saved."
 		if result.get("workspace"):
 			message += f" It is also listed in the '{result['workspace']}' workspace."
+	elif action.action_type == "Save Memory":
+		from omni_ai.tools.memory import save_memory
+
+		result = save_memory(payload, user, action.conversation)
+		message = result.pop("message")
+	elif action.action_type == "Create Schedule":
+		from omni_ai.tools.schedule import create_schedule
+
+		result = create_schedule(payload, user)
+		result["route"] = doc_route(result["doctype"], result["name"])
+		message = result.pop("message")
+	elif action.action_type == "Run Automation":
+		from omni_ai.tools.automation import run_automation
+
+		result = run_automation(payload, user)
+		message = result.pop("message")
 	else:
 		result = _execute_document_action(payload)
 		message = result.pop("message")
@@ -196,8 +220,8 @@ def execute_action(action_name: str, user: str) -> dict:
 		{
 			"status": "Completed",
 			"executed_at": now_datetime(),
-			"reference_doctype": result.get("doctype"),
-			"reference_name": result.get("name") if result.get("exists", True) else None,
+			"reference_doctype": None if result.get("no_route") else result.get("doctype"),
+			"reference_name": None if result.get("no_route") or not result.get("exists", True) else result.get("name"),
 			"result": clip(message, 500),
 		}
 	)
@@ -257,6 +281,6 @@ TOOLS = [
 		},
 		propose_document_action,
 		label="Preparing change",
-		enabled=lambda ctx: bool(ctx.settings.enable_write_actions),
+		enabled=lambda ctx: bool(ctx.settings.enable_write_actions) and not ctx.unattended,
 	)
 ]

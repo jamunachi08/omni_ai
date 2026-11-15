@@ -504,9 +504,21 @@ def propose_report(args, ctx):
 	from omni_ai.tools.actions import create_action
 
 	rows = clean_rows(rows)
+	# an earlier draft from this same reply is replaced, so the user is never left with two Save buttons
+	for part in ctx.parts:
+		if part.get("type") == "action" and part.get("action_type") == "Save Report" and part.get("status") == "Pending":
+			if part.get("action") in ctx.created_actions:
+				frappe.db.set_value("AI Assistant Action", part["action"], {"status": "Cancelled", "result": "Replaced by a newer draft."})
+				part["status"] = "Cancelled"
+				if ctx.stream:
+					ctx.stream.emit("part_update", id=part["id"], patch={"status": "Cancelled"})
+	from omni_ai.engine.review import review_report
+
+	review = review_report(payload, columns, rows)
 	action = create_action(ctx, "Save Report", f"Save report: {final_name}", payload)
 	ctx.add_part(
 		{
+			"review": review,
 			"type": "action",
 			"action": action.name,
 			"action_type": "Save Report",
@@ -532,6 +544,14 @@ def propose_report(args, ctx):
 			"Do not claim it has been saved."
 		),
 	}
+	if review["status"] == "issues":
+		reply["review_notes"] = review["notes"]
+		reply["message"] = (
+			"A preview card is shown to the user, together with these notes from an independent reviewer. Check each "
+			"note against the data. If a note is right, fix the definition and call propose_report again (the old draft "
+			"is replaced). If a note is wrong, tell the user briefly why the draft is correct. The report is NOT saved "
+			"until the user presses Save."
+		)
 	if final_name != name:
 		reply["renamed"] = f"A report named '{name}' already exists, so this draft is named '{final_name}'."
 	if not rows:
@@ -741,6 +761,6 @@ TOOLS = [
 		},
 		propose_report,
 		label="Drafting report",
-		enabled=lambda ctx: bool(ctx.settings.enable_report_creation),
+		enabled=lambda ctx: bool(ctx.settings.enable_report_creation) and not ctx.unattended,
 	),
 ]

@@ -1,12 +1,13 @@
 {
  "actions": [],
- "creation": "2026-11-10 06:00:00.000000",
+ "creation": "2026-11-15 15:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "tab_general",
   "enabled",
   "sec_provider",
+  "provider",
   "api_key",
   "base_url",
   "col_provider",
@@ -51,8 +52,31 @@
   "col_actions",
   "enable_web_search",
   "web_search_max_uses",
+  "tab_smart",
+  "sec_memory",
+  "enable_memory",
+  "col_memory",
+  "memory_notes_per_reply",
+  "sec_embeddings",
+  "memory_embeddings",
+  "embeddings_model",
+  "col_embeddings",
+  "embeddings_base_url",
+  "embeddings_api_key",
+  "sec_checks",
+  "verify_figures",
+  "col_checks",
+  "review_reports",
+  "sec_schedules",
+  "enable_schedules",
+  "col_schedules",
+  "max_schedules_per_user",
+  "sec_automations",
+  "enable_automations",
   "tab_limits",
   "daily_message_limit",
+  "messages_per_minute",
+  "monthly_token_budget",
   "max_tool_rounds",
   "max_rows",
   "col_limits",
@@ -78,17 +102,25 @@
    "label": "AI Provider"
   },
   {
+   "fieldname": "provider",
+   "fieldtype": "Select",
+   "label": "Provider",
+   "options": "Claude\nOpenAI-compatible",
+   "default": "Claude",
+   "description": "Claude is the default and the best supported. OpenAI-compatible covers OpenAI, OpenRouter, Gemini's compatible endpoint and local models served by Ollama, vLLM or LM Studio, so data can stay on your own servers."
+  },
+  {
    "fieldname": "api_key",
    "fieldtype": "Password",
    "label": "API Key",
-   "description": "Claude API key from console.anthropic.com. Stored encrypted; never sent to the browser."
+   "description": "Stored encrypted; never sent to the browser. A local model server may not need one."
   },
   {
    "fieldname": "base_url",
    "fieldtype": "Data",
    "label": "API Base URL",
    "default": "https://api.anthropic.com",
-   "description": "Change only if you route requests through your own gateway or proxy."
+   "description": "Claude: leave as is unless you use a gateway. OpenAI-compatible: the URL ending in /v1, for example https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama."
   },
   {
    "fieldname": "col_provider",
@@ -99,7 +131,7 @@
    "fieldtype": "Data",
    "label": "Model",
    "default": "claude-opus-5-5",
-   "description": "Model ID, for example claude-opus-5-5, claude-sonnet-5-5, claude-haiku-5-5 or claude-fable-5-2. Use Test Connection to list the models your key can use."
+   "description": "Model ID as the provider names it, for example claude-opus-5-5 or claude-sonnet-5-5. Use Test Connection to list the models your key can use. With other providers choose a model that supports tool calling."
   },
   {
    "fieldname": "effort",
@@ -344,6 +376,130 @@
    "depends_on": "enable_web_search"
   },
   {
+   "fieldname": "tab_smart",
+   "fieldtype": "Tab Break",
+   "label": "Memory and Automation"
+  },
+  {
+   "fieldname": "sec_memory",
+   "fieldtype": "Section Break",
+   "label": "Memory"
+  },
+  {
+   "fieldname": "enable_memory",
+   "fieldtype": "Check",
+   "label": "Remember Across Conversations",
+   "default": "1",
+   "description": "The assistant can suggest notes to remember (preferences, business rules). A personal note is saved when the user accepts it; a company-wide note also needs a System Manager's approval."
+  },
+  {
+   "fieldname": "col_memory",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "memory_notes_per_reply",
+   "fieldtype": "Int",
+   "label": "Notes Recalled per Message",
+   "default": "8",
+   "depends_on": "enable_memory"
+  },
+  {
+   "fieldname": "sec_embeddings",
+   "fieldtype": "Section Break",
+   "label": "Recall by Meaning",
+   "depends_on": "enable_memory",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "memory_embeddings",
+   "fieldtype": "Check",
+   "label": "Find Notes by Meaning",
+   "default": "0",
+   "description": "Without this, notes are found by shared words. With it, each note and each question is sent to an embeddings service so that 'revenue' also finds a note about 'sales'. Claude has no embeddings service, so this needs another provider or a local model."
+  },
+  {
+   "fieldname": "embeddings_model",
+   "fieldtype": "Data",
+   "label": "Embeddings Model",
+   "depends_on": "memory_embeddings",
+   "description": "For example text-embedding-3-small (OpenAI) or nomic-embed-text (Ollama)."
+  },
+  {
+   "fieldname": "col_embeddings",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "embeddings_base_url",
+   "fieldtype": "Data",
+   "label": "Embeddings API Base URL",
+   "depends_on": "memory_embeddings",
+   "description": "OpenAI-compatible URL ending in /v1."
+  },
+  {
+   "fieldname": "embeddings_api_key",
+   "fieldtype": "Password",
+   "label": "Embeddings API Key",
+   "depends_on": "memory_embeddings"
+  },
+  {
+   "fieldname": "sec_checks",
+   "fieldtype": "Section Break",
+   "label": "Accuracy Checks"
+  },
+  {
+   "fieldname": "verify_figures",
+   "fieldtype": "Check",
+   "label": "Check Figures Against Query Results",
+   "default": "1",
+   "description": "Large numbers in an answer are matched against what the queries returned. If one cannot be traced, the assistant is asked to recompute it, and the answer is flagged if it still cannot be traced."
+  },
+  {
+   "fieldname": "col_checks",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "review_reports",
+   "fieldtype": "Check",
+   "label": "Second-opinion Review of Report Drafts",
+   "default": "1",
+   "description": "Before a SQL report draft is shown, a separate review pass looks for logic errors (double counting, missing filters). Its notes appear on the draft. Uses one extra AI request per draft."
+  },
+  {
+   "fieldname": "sec_schedules",
+   "fieldtype": "Section Break",
+   "label": "Scheduled Tasks"
+  },
+  {
+   "fieldname": "enable_schedules",
+   "fieldtype": "Check",
+   "label": "Allow Scheduled Tasks",
+   "default": "1",
+   "description": "Users can have a question answered on a schedule and emailed to them. Needs the scheduler and outgoing email to be working."
+  },
+  {
+   "fieldname": "col_schedules",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_schedules_per_user",
+   "fieldtype": "Int",
+   "label": "Max Scheduled Tasks per User",
+   "default": "5",
+   "depends_on": "enable_schedules"
+  },
+  {
+   "fieldname": "sec_automations",
+   "fieldtype": "Section Break",
+   "label": "Automations"
+  },
+  {
+   "fieldname": "enable_automations",
+   "fieldtype": "Check",
+   "label": "Allow Triggering Automations",
+   "default": "1",
+   "description": "Lets the assistant start workflows you register under AI Assistant Automation (for example n8n webhooks). Every run needs the user's confirmation."
+  },
+  {
    "fieldname": "tab_limits",
    "fieldtype": "Tab Break",
    "label": "Limits and Logs"
@@ -354,6 +510,20 @@
    "label": "Daily Messages per User",
    "default": "0",
    "description": "0 means unlimited."
+  },
+  {
+   "fieldname": "messages_per_minute",
+   "fieldtype": "Int",
+   "label": "Messages per Minute per User",
+   "default": "10",
+   "description": "Stops a script or a stuck page from running up cost. 0 means unlimited."
+  },
+  {
+   "fieldname": "monthly_token_budget",
+   "fieldtype": "Int",
+   "label": "Monthly Tokens per User",
+   "default": "0",
+   "description": "Input plus output tokens a user may consume in a calendar month. 0 means unlimited. See the AI Assistant Usage report for actual use."
   },
   {
    "fieldname": "max_tool_rounds",
@@ -395,7 +565,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-10 06:00:00.000000",
+ "modified": "2026-11-15 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "AI Assistant",
  "name": "AI Assistant Settings",

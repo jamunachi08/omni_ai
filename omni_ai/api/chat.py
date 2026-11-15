@@ -9,7 +9,8 @@ from frappe.utils import cint, now_datetime, nowdate
 
 from omni_ai.engine import stream as bus
 from omni_ai.engine.files import validate_attachments
-from omni_ai.utils import clip, dumps, get_api_key, get_settings, loads, require_access, to_int
+from omni_ai.engine import guard
+from omni_ai.utils import clip, dumps, get_settings, is_configured, loads, require_access, to_int
 
 MAX_MESSAGE_CHARS = 60000
 STALE_RUN_SECONDS = 20 * 60
@@ -210,9 +211,11 @@ def send(message: str, conversation: str | None = None, attachments=None, page_c
 	if len(message) > MAX_MESSAGE_CHARS:
 		frappe.throw(_("That message is too long. Attach it as a file instead."))
 	settings = get_settings()
-	if not get_api_key():
+	if not is_configured():
 		frappe.throw(_("The assistant is not connected yet. Ask your administrator to add an API key in {0} Settings.").format(settings.brand_name or "Assistant"))
 	_check_daily_limit(user)
+	guard.check_rate(user)
+	guard.check_budget(user)
 
 	created = False
 	if conversation:
@@ -241,6 +244,14 @@ def send(message: str, conversation: str | None = None, attachments=None, page_c
 
 	context = _clean_context(page_context)
 	notes = loads(conv.pending_notes, []) or []
+	recalled = []
+	try:
+		from omni_ai.tools import memory
+
+		recalled = memory.recall(user, message)
+		memory.mark_used([n["name"] for n in recalled])
+	except Exception:
+		frappe.log_error(title="AI Assistant memory recall failed")
 	msg = frappe.get_doc(
 		{
 			"doctype": "AI Assistant Message",
@@ -251,6 +262,7 @@ def send(message: str, conversation: str | None = None, attachments=None, page_c
 			"attachments": dumps(refs) if refs else None,
 			"page_context": dumps(context) if context else None,
 			"notes": dumps(notes) if notes else None,
+			"memory": dumps([{"title": n["title"], "content": n["content"]} for n in recalled]) if recalled else None,
 		}
 	)
 	msg.flags.ignore_permissions = True
@@ -302,6 +314,8 @@ def regenerate(conversation: str, run_id: str | None = None):
 	if _active_run(conv):
 		frappe.throw(_("Please wait for the current reply to finish, or stop it first."))
 	_check_daily_limit(frappe.session.user)
+	guard.check_rate(frappe.session.user)
+	guard.check_budget(frappe.session.user)
 	last = frappe.get_all(
 		"AI Assistant Message",
 		filters={"conversation": conv.name},

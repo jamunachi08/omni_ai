@@ -7,19 +7,24 @@ engine, so it is locked down in layers:
 2. One statement, SELECT (or WITH ... SELECT) only; comments, write keywords,
    file access, sleep/benchmark and system schemas are rejected.
 3. Every table must be a backtick-quoted DocType table and the user needs
-   read permission on that DocType (or on a parent, for child tables).
-4. Secrets tables and credential columns are always blocked.
+   read permission on that DocType (or on a parent, for child tables). Any
+   other name that matches a real table in the database is rejected wherever
+   it appears, so internal tables cannot be reached through comma joins,
+   sub-queries or quoted names.
+4. Secrets tables and credential columns are always blocked, and credential
+   columns are also removed from results (so `SELECT *` cannot return them).
 5. A row cap and a statement timeout are enforced.
+
+The query is scanned with a small scanner of our own rather than a general SQL
+parser, so that what we treat as a string literal is exactly what the database
+treats as one. Backslashes are refused for the same reason.
 """
 
 import re
 
 import frappe
-import sqlparse
-from sqlparse import tokens as T
-
 from omni_ai.tools.base import Tool, ToolError, columns_from_names, tabular_reply
-from omni_ai.tools.data import HIDDEN_DOCTYPES, can_read
+from omni_ai.tools.data import HIDDEN_DOCTYPES, SECRET_FIELD_RE, can_read
 from omni_ai.utils import can_use_sql, clip, to_int
 
 STATEMENT_TIMEOUT = 45  # seconds
@@ -32,12 +37,10 @@ FORBIDDEN_WORDS = (
 	"into", "procedure", "analyse", "set",
 )  # fmt: skip
 FORBIDDEN_RE = re.compile(r"\b(" + "|".join(FORBIDDEN_WORDS) + r")\b", re.I)
-SECRET_COLUMNS_RE = re.compile(
-	r"\b(password|api_key|api_secret|reset_password_key|otp_secret|client_secret|access_token|refresh_token|"
-	r"private_key|secret_key|webhook_secret|encryption_key)\b",
-	re.I,
-)
+SECRET_COLUMNS_RE = SECRET_FIELD_RE
 TABLE_RE = re.compile(r"`tab([^`]+)`")
+QUOTED_NAME_RE = re.compile(r"`([^`]*)`")
+WORD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*")
 BARE_TABLE_RE = re.compile(r"\b(?:from|join)\s+([A-Za-z_][\w$.]*)", re.I)
 CTE_RE = re.compile(r"(?:\bwith\b|,)\s*([A-Za-z_]\w*)\s+as\s*\(", re.I)
 TRAILING_LIMIT_RE = re.compile(r"\blimit\s+\d+(\s*,\s*\d+|\s+offset\s+\d+)?\s*$", re.I)
@@ -61,19 +64,45 @@ def unescape_percents(query: str) -> str:
 	return query.replace("%%", "%")
 
 
-def _skeleton(statement) -> str:
-	"""The statement with string literals and quoted names blanked out, for keyword checks."""
-	out = []
-	for token in statement.flatten():
-		if token.ttype in T.Comment or (token.ttype and str(token.ttype).startswith("Token.Comment")):
-			raise SQLGuardError("SQL comments are not allowed.")
-		if token.ttype in (T.Literal.String.Single, T.Literal.String.Symbol, T.Name) and str(token).startswith(
-			("'", '"', "`")
-		):
-			out.append(" '' ")
+def _skeleton(query: str) -> str:
+	"""The query with string literals and backtick-quoted names blanked out, for keyword checks.
+
+	Follows MariaDB's own rules: a literal starts at a quote and ends at the next matching quote,
+	a doubled quote stands for the quote itself. (Backslash escapes are refused before this runs.)
+	"""
+	out, i, n = [], 0, len(query)
+	while i < n:
+		ch = query[i]
+		if ch in ("'", '"', "`"):
+			j = i + 1
+			while True:
+				j = query.find(ch, j)
+				if j == -1:
+					raise SQLGuardError("The query has an unterminated quote.")
+				if j + 1 < n and query[j + 1] == ch:
+					j += 2
+					continue
+				break
+			out.append(" `` " if ch == "`" else " '' ")
+			i = j + 1
 		else:
-			out.append(str(token))
+			out.append(ch)
+			i += 1
 	return "".join(out)
+
+
+def _database_tables() -> set:
+	"""Lower-cased names of every table in the site database (cached briefly)."""
+	tables = frappe.cache.get_value("omni_ai:db_tables")
+	if not tables:
+		tables = [t.lower() for t in frappe.db.get_tables(cached=False)]
+		try:
+			# every schema this database user can see is off limits too
+			tables += [str(r[0]).lower() for r in frappe.db.sql("show databases")]
+		except Exception:
+			pass
+		frappe.cache.set_value("omni_ai:db_tables", tables, expires_in_sec=300)
+	return set(tables)
 
 
 def validate_select(query: str, check_permissions: bool = True) -> dict:
@@ -83,14 +112,13 @@ def validate_select(query: str, check_permissions: bool = True) -> dict:
 		raise SQLGuardError("The query is empty.")
 	if len(query) > 20000:
 		raise SQLGuardError("The query is too long.")
-	if "/*" in query or "--" in query or re.search(r"(^|\s)#", query):
+	if "\\" in query:
+		raise SQLGuardError("Backslashes are not allowed in assistant queries.")
+	if "\x00" in query:
+		raise SQLGuardError("The query contains an invalid character.")
+	skeleton = _skeleton(query)
+	if "/*" in skeleton or "--" in skeleton or "#" in skeleton:
 		raise SQLGuardError("SQL comments are not allowed.")
-
-	statements = [s for s in sqlparse.parse(query) if str(s).strip()]
-	if len(statements) != 1:
-		raise SQLGuardError("Exactly one SQL statement is allowed.")
-	statement = statements[0]
-	skeleton = _skeleton(statement)
 	if ";" in skeleton:
 		raise SQLGuardError("Exactly one SQL statement is allowed.")
 
@@ -109,7 +137,7 @@ def validate_select(query: str, check_permissions: bool = True) -> dict:
 		raise SQLGuardError("Locking reads are not allowed.")
 	secret = SECRET_COLUMNS_RE.search(query)
 	if secret:
-		raise SQLGuardError(f"Column '{secret.group(1)}' holds credentials and cannot be queried.")
+		raise SQLGuardError(f"Column '{secret.group(0)}' holds credentials and cannot be queried.")
 
 	cte_names = {m.group(1).lower() for m in CTE_RE.finditer(skeleton)}
 	for match in BARE_TABLE_RE.finditer(skeleton):
@@ -119,6 +147,31 @@ def validate_select(query: str, check_permissions: bool = True) -> dict:
 		raise SQLGuardError(
 			f"Table '{match.group(1)}' must be written as a backtick-quoted DocType table, for example `tabSales Invoice`."
 		)
+
+	# Nothing but permitted DocType tables may be named, in any position and however it is quoted.
+	tables = _database_tables()
+	if "``" in query:
+		raise SQLGuardError("Empty or doubled backticks are not allowed.")
+	for name in QUOTED_NAME_RE.findall(query):
+		if name.startswith("tab"):
+			continue
+		if name.startswith("__") or name.lower() in tables:
+			raise SQLGuardError(f"`{name}` is not available to the assistant.")
+		if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_ ]*", name):
+			raise SQLGuardError(
+				f"`{name}`: quoted column names and aliases may contain only letters, numbers, spaces and underscores."
+			)
+	if re.search(r"``\s*\.\s*``", skeleton) and re.search(r"`(?!tab)[^`]*`\s*\.\s*`", query):
+		raise SQLGuardError("Schema-qualified names are not allowed. Use `tab<DocType>` tables only.")
+	# double quotes are string literals on MariaDB but identifiers on Postgres (or with ANSI_QUOTES)
+	for name in re.findall(r'"([^"]*)"', query):
+		if name.startswith(("__", "tab")) or name.lower() in tables:
+			raise SQLGuardError(f'"{name}" is not available to the assistant.')
+	for word in set(WORD_RE.findall(skeleton)):
+		if word.startswith("__") or word.lower() in tables:
+			raise SQLGuardError(
+				f"'{word}' is a database table. Only backtick-quoted DocType tables such as `tabSales Invoice` may be used."
+			)
 
 	doctypes = sorted(set(TABLE_RE.findall(query)))
 	if not doctypes and "from" in skeleton.lower():
@@ -163,6 +216,12 @@ def run_select(query: str, values: dict = None, limit: int = 1000) -> tuple:
 		if description is None:
 			description = frappe.db._cursor.description
 		names = [d[0] for d in (description or [])]
+		# credential columns never leave the database, whatever the query looked like (e.g. SELECT *)
+		hidden = [i for i, name in enumerate(names) if SECRET_COLUMNS_RE.search(str(name))]
+		if hidden:
+			keep = [i for i in range(len(names)) if i not in set(hidden)]
+			names = [names[i] for i in keep]
+			rows = [[row[i] for i in keep] for row in rows]
 	except SQLGuardError:
 		raise
 	except KeyError as exc:

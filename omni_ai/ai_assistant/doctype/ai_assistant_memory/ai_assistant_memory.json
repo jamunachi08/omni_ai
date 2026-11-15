@@ -1,0 +1,160 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-15 15:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "content",
+  "col_1",
+  "scope",
+  "user",
+  "status",
+  "sec_meta",
+  "proposed_by",
+  "source_conversation",
+  "col_2",
+  "approved_by",
+  "use_count",
+  "embedding",
+  "embedding_model",
+  "last_used"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "content",
+   "fieldtype": "Small Text",
+   "label": "Note",
+   "reqd": 1,
+   "description": "What the assistant should remember. Keep it short and factual. Never store passwords or keys."
+  },
+  {
+   "fieldname": "col_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "scope",
+   "fieldtype": "Select",
+   "label": "Applies To",
+   "options": "Personal\nCompany",
+   "default": "Personal",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "depends_on": "eval:doc.scope=='Personal'"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Proposed\nApproved\nRejected",
+   "default": "Proposed",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "sec_meta",
+   "fieldtype": "Section Break",
+   "label": "History"
+  },
+  {
+   "fieldname": "proposed_by",
+   "fieldtype": "Link",
+   "label": "Proposed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_conversation",
+   "fieldtype": "Link",
+   "label": "From Conversation",
+   "options": "AI Assistant Conversation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "use_count",
+   "fieldtype": "Int",
+   "label": "Times Recalled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "embedding",
+   "fieldtype": "Long Text",
+   "label": "Embedding (JSON)",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "embedding_model",
+   "fieldtype": "Data",
+   "label": "Embedding Model",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "last_used",
+   "fieldtype": "Datetime",
+   "label": "Last Recalled",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-15 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "AI Assistant",
+ "name": "AI Assistant Memory",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "AI Assistant User",
+   "read": 1,
+   "delete": 1,
+   "if_owner": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "share": 1,
+   "export": 1,
+   "report": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 0
+}

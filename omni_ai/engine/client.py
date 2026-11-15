@@ -115,7 +115,9 @@ class ClaudeClient:
 				if attempt <= MAX_RETRIES:
 					time.sleep(min(2**attempt, 10))
 					continue
-				raise ProviderError(f"Could not reach the AI provider: {type(exc).__name__}") from exc
+				raise ProviderError(
+					f"Could not reach the AI provider: {type(exc).__name__}", kind="connection_error"
+				) from exc
 
 			if resp.status_code != 200:
 				err = self._error(resp)

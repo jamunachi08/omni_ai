@@ -6,7 +6,9 @@ import frappe
 from frappe.utils import now_datetime
 
 from omni_ai.engine import stream as bus
+from omni_ai.engine import guard
 from omni_ai.engine.client import ClaudeClient, ProviderError
+from omni_ai.engine.openai_client import OpenAICompatClient
 from omni_ai.engine.files import attachment_blocks
 from omni_ai.engine.prompt import build_system_prompt
 from omni_ai.tools import ToolContext, available_tools, describe_call, execute_tool
@@ -18,6 +20,15 @@ STEP_LIMIT_NOTE = (
 	"Step limit reached for this reply. Do not call any more tools. Give the user your best answer now from what "
 	"you already have, and say briefly what is still missing."
 )
+
+
+def make_client(timeout: int | None = None):
+	"""The client for the provider chosen in settings. Both clients take and return the same message format."""
+	settings = get_settings()
+	timeout = timeout or to_int(settings.request_timeout, 600) or 600
+	if settings.provider == "OpenAI-compatible":
+		return OpenAICompatClient(get_api_key(), settings.base_url, timeout)
+	return ClaudeClient(get_api_key(), settings.base_url, timeout)
 
 
 # -- history -------------------------------------------------------------------------
@@ -93,6 +104,10 @@ def _user_content(row, user: str, with_files: bool) -> list:
 	context = loads(row.page_context, None)
 	if context:
 		text = f"<page_context>{dumps(context)}</page_context>\n{text}"
+	memory = loads(row.memory, [])
+	if memory:
+		lines = "\n".join(f"- {m.get('title')}: {m.get('content')}" for m in memory)
+		text = f"<memory>\n{lines}\n</memory>\n{text}"
 	blocks.append({"type": "text", "text": text or "(no text)"})
 	return blocks
 
@@ -101,7 +116,7 @@ def build_messages(conversation: str, user: str, settings) -> list:
 	rows = frappe.get_all(
 		"AI Assistant Message",
 		filters={"conversation": conversation},
-		fields=["name", "role", "content", "api_messages", "attachments", "page_context", "notes", "status", "ui"],
+		fields=["name", "role", "content", "api_messages", "attachments", "page_context", "notes", "memory", "status", "ui"],
 		order_by="creation asc, name asc",
 		limit=0,
 	)
@@ -159,7 +174,9 @@ def build_messages(conversation: str, user: str, settings) -> list:
 
 
 class Run:
-	def __init__(self, run_id: str, conversation: str, user: str):
+	def __init__(self, run_id: str, conversation: str, user: str, unattended: bool = False):
+		self.unattended = unattended
+		self.figures_checked = False
 		self.run_id = run_id
 		self.conversation = conversation
 		self.user = user
@@ -177,7 +194,7 @@ class Run:
 	# -- text + parts -------------------------------------------------------------
 
 	def on_text(self, delta: str):
-		if not self.parts or self.parts[-1].get("type") != "text":
+		if not self.parts or self.parts[-1].get("type") != "text" or self.parts[-1].get("draft"):
 			self.parts.append({"type": "text", "text": ""})
 		self.parts[-1]["text"] += delta
 		self.stream.text(delta)
@@ -226,7 +243,8 @@ class Run:
 
 	def payload(self, system: str, messages: list) -> dict:
 		tools = [tool.definition() for tool in self.tools.values()]
-		if self.settings.enable_web_search:
+		claude = self.settings.provider != "OpenAI-compatible"
+		if self.settings.enable_web_search and claude:
 			tools.append(
 				{
 					"type": WEB_SEARCH_TOOL,
@@ -241,9 +259,9 @@ class Run:
 			"messages": messages,
 			"tools": tools,
 		}
-		if self.settings.effort:
+		if self.settings.effort and claude:
 			payload["output_config"] = {"effort": self.settings.effort}
-		if self.settings.prompt_caching:
+		if self.settings.prompt_caching and claude:
 			payload["cache_control"] = {"type": "ephemeral"}
 		return payload
 
@@ -258,9 +276,12 @@ class Run:
 	# -- main loop ----------------------------------------------------------------
 
 	def execute(self):
-		self.ctx = ToolContext(self.user, self.conversation, stream=self.stream, parts=self.parts)
+		self.ctx = ToolContext(
+			self.user, self.conversation, stream=self.stream, parts=self.parts, unattended=self.unattended
+		)
 		self.tools = available_tools(self.ctx)
-		client = ClaudeClient(get_api_key(), self.settings.base_url, to_int(self.settings.request_timeout, 600) or 600)
+		guard.check_open("provider")
+		client = make_client()
 		system = build_system_prompt(self.user, set(self.tools))
 		history = build_messages(self.conversation, self.user, self.settings)
 		if not history:
@@ -271,12 +292,18 @@ class Run:
 		while True:
 			rounds += 1
 			self.stream.emit("status", s="thinking")
-			message = client.stream(
-				self.payload(system, history + self.turn_messages),
-				on_text=self.on_text,
-				on_block=self.on_block,
-				should_stop=self.stream.should_stop,
-			)
+			try:
+				message = client.stream(
+					self.payload(system, history + self.turn_messages),
+					on_text=self.on_text,
+					on_block=self.on_block,
+					should_stop=self.stream.should_stop,
+				)
+			except ProviderError as exc:
+				if guard.is_outage(exc):
+					guard.record_failure("provider")
+				raise
+			guard.record_success("provider")
 			self.stream.flush()
 			self.add_usage(message.get("usage"))
 			self.model = message.get("model") or self.model
@@ -309,6 +336,11 @@ class Run:
 			if stop_reason != "tool_use" or not tool_calls:
 				if stop_reason == "refusal":
 					self.note("_I can't help with that request._")
+					break
+				recheck = self.check_figures(history)
+				if recheck:
+					self.turn_messages.append({"role": "user", "content": [{"type": "text", "text": recheck}]})
+					continue
 				break
 			if rounds > max_rounds:
 				self.note("_I stopped here because this request needed more steps than allowed._")
@@ -343,6 +375,56 @@ class Run:
 				{"type": "sources", "items": [{"url": url, "title": clip(title, 120)} for url, title in list(self.sources.items())[:12]]}
 			)
 
+	def check_figures(self, history: list) -> str | None:
+		"""Trace the large numbers in the answer to query results. Returns a note for the model when it
+		should recompute (once per reply); adds a visible caveat when figures still cannot be traced."""
+		if not self.settings.verify_figures or not self.ctx.data_tools_used:
+			return None
+		from omni_ai.engine.grounding import collect_sources, untraced
+
+		texts = []
+		for message in history:  # what the user wrote and what earlier replies established
+			content = message.get("content")
+			for block in content if isinstance(content, list) else [{"type": "text", "text": content}]:
+				if block.get("type") == "text":
+					texts.append(block.get("text") or "")
+				elif block.get("type") == "tool_result":
+					texts.append(block.get("content") if isinstance(block.get("content"), str) else dumps(block.get("content")))
+		for message in self.turn_messages:  # from this reply only tool results count, never its own drafts
+			for block in message.get("content") or []:
+				if block.get("type") == "tool_result":
+					texts.append(block.get("content") if isinstance(block.get("content"), str) else dumps(block.get("content")))
+		for part in self.parts:
+			if part.get("type") in ("table", "action") and part.get("rows"):
+				texts.append(dumps(part["rows"]))
+		last = self.turn_messages[-1]["content"] if self.turn_messages else []
+		answer = "\n".join(b.get("text") or "" for b in last if b.get("type") == "text")
+		missing = untraced(answer, collect_sources(texts, self.ctx.results))
+		if not missing:
+			return None
+		listed = ", ".join(missing)
+		if not self.figures_checked:
+			self.figures_checked = True
+			for part in self.parts:
+				if part.get("type") == "text":
+					part["draft"] = True
+			self.stream.emit("retract")
+			self.stream.emit("status", s="checking")
+			return (
+				"<system_note>Automatic check of your draft: these figures do not appear in any query result of this "
+				f"conversation: {listed}. Do not rely on arithmetic done in your head. Recompute each one with a query "
+				"(an aggregate in query_data or run_sql), or remove or correct it, then give the complete final answer "
+				"again. The user will only read the new answer, so do not refer to the draft or to this check.</system_note>"
+			)
+		self.ctx.add_part(
+			{
+				"type": "notice",
+				"level": "warn",
+				"text": f"These figures could not be matched to a query result, so please verify them before relying on them: {listed}",
+			}
+		)
+		return None
+
 	def _close_running_parts(self, summary: str):
 		for part in self.parts:
 			if part.get("type") == "tool" and part.get("status") == "running":
@@ -351,7 +433,11 @@ class Run:
 	# -- persistence --------------------------------------------------------------
 
 	def text(self) -> str:
-		return "\n\n".join(p["text"].strip() for p in self.parts if p.get("type") == "text" and p.get("text", "").strip())
+		return "\n\n".join(
+			p["text"].strip()
+			for p in self.parts
+			if p.get("type") == "text" and p.get("text", "").strip() and not p.get("draft")
+		)
 
 	def save(self) -> str:
 		doc = frappe.get_doc(
@@ -450,9 +536,11 @@ def maybe_set_title(conversation: str, user: str, job: Run):
 	question = (first[0].content if first else "") or ""
 	title = " ".join(question.split())[:60] or "Conversation"
 	model = (job.settings.title_model or "").strip()
+	if job.settings.provider == "OpenAI-compatible" and model.startswith("claude-"):
+		model = job.settings.model  # the default title model only exists on Claude
 	if model and question:
 		try:
-			client = ClaudeClient(get_api_key(), job.settings.base_url, 30)
+			client = make_client(30)
 			reply = client.stream(
 				{
 					"model": model,

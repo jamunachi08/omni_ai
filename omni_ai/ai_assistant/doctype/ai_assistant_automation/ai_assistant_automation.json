@@ -1,0 +1,123 @@
+{
+ "actions": [],
+ "autoname": "field:title",
+ "creation": "2026-11-15 15:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "enabled",
+  "description",
+  "col_1",
+  "webhook_url",
+  "auth_header",
+  "auth_value",
+  "timeout",
+  "sec_params",
+  "parameters",
+  "sec_roles",
+  "roles"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Name",
+   "in_list_view": 1,
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "What It Does",
+   "reqd": 1,
+   "description": "Shown to the assistant so it knows when to offer this automation. Example: Sends a WhatsApp message to a customer."
+  },
+  {
+   "fieldname": "col_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "webhook_url",
+   "fieldtype": "Data",
+   "label": "Webhook URL",
+   "reqd": 1,
+   "description": "For n8n: the Production URL of a Webhook node. The assistant sends a POST request with JSON."
+  },
+  {
+   "fieldname": "auth_header",
+   "fieldtype": "Data",
+   "label": "Secret Header Name",
+   "default": "Authorization",
+   "description": "Header used to prove the request comes from this site."
+  },
+  {
+   "fieldname": "auth_value",
+   "fieldtype": "Password",
+   "label": "Secret Header Value"
+  },
+  {
+   "fieldname": "timeout",
+   "fieldtype": "Int",
+   "label": "Timeout (seconds)",
+   "default": "30"
+  },
+  {
+   "fieldname": "sec_params",
+   "fieldtype": "Section Break",
+   "label": "Parameters"
+  },
+  {
+   "fieldname": "parameters",
+   "fieldtype": "Table",
+   "label": "Parameters",
+   "options": "AI Assistant Automation Parameter"
+  },
+  {
+   "fieldname": "sec_roles",
+   "fieldtype": "Section Break",
+   "label": "Who Can Run It"
+  },
+  {
+   "fieldname": "roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Roles",
+   "options": "AI Assistant Role",
+   "description": "Leave empty to allow System Managers only."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-15 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "AI Assistant",
+ "name": "AI Assistant Automation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "share": 1,
+   "export": 1,
+   "report": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 0
+}

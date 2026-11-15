@@ -17,6 +17,12 @@ STANDARD_FIELDS = set(default_fields) | set(optional_fields) | {"name", "docstat
 AGG_FUNCTIONS = {"sum", "count", "avg", "min", "max"}
 FIELDNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SKIP_FIELDTYPES = set(no_value_fields) - {"Table", "Table MultiSelect"}
+# Field names that hold credentials or tokens. They are never read, whatever their field type.
+SECRET_FIELD_RE = re.compile(
+	r"\b\w*(?:password|passwd|api_key|api_secret|otp_secret|client_secret|access_token|refresh_token|"
+	r"private_key|secret_key|secret_access_key|webhook_secret|encryption_key|auth_token|bearer_token)\w*\b",
+	re.I,
+)
 # Never expose these through the assistant, whatever the user's role.
 HIDDEN_DOCTYPES = {
 	"OAuth Bearer Token",
@@ -28,6 +34,20 @@ HIDDEN_DOCTYPES = {
 	"Connected App",
 	"Sessions",
 	"AI Assistant Settings",
+	"Integration Request",
+	"Webhook Request Log",
+	"Access Log",
+	"Activity Log",
+	"User Email",
+	"Email Account",
+	"Email Domain",
+	"LDAP Settings",
+	"Google Settings",
+	"S3 Backup Settings",
+	"Dropbox Settings",
+	"Webhook",
+	"Push Notification Settings",
+	"AI Assistant Automation",
 }
 
 
@@ -104,6 +124,8 @@ def check_field(meta, fieldname: str, allowed: set):
 		)
 	if df.fieldtype in SKIP_FIELDTYPES or df.fieldtype in ("Table", "Table MultiSelect", "Password"):
 		raise ToolError(f"Field '{fieldname}' ({df.fieldtype}) cannot be selected in a query.")
+	if SECRET_FIELD_RE.search(fieldname):
+		raise ToolError(f"Field '{fieldname}' holds credentials and is not available to the assistant.", denied=True)
 	if fieldname not in allowed:
 		raise ToolError(f"The current user is not allowed to read field '{fieldname}' on {meta.name}.", denied=True)
 	return fieldname
@@ -171,7 +193,7 @@ def get_doctype_info(args, ctx):
 		levels = None
 	fields, child_tables = [], []
 	for df in meta.fields:
-		if df.fieldtype in SKIP_FIELDTYPES or df.fieldtype == "Password":
+		if df.fieldtype in SKIP_FIELDTYPES or df.fieldtype == "Password" or SECRET_FIELD_RE.search(df.fieldname):
 			continue
 		if df.fieldtype in ("Table", "Table MultiSelect"):
 			if levels is None or (df.permlevel or 0) in levels or meta.istable:
@@ -390,6 +412,8 @@ def get_document(args, ctx):
 		out = {}
 		for df in d_meta.fields:
 			if df.fieldtype in SKIP_FIELDTYPES or df.fieldtype in ("Password", "Table", "Table MultiSelect"):
+				continue
+			if SECRET_FIELD_RE.search(df.fieldname):
 				continue
 			value = d.get(df.fieldname)
 			if value in (None, "", 0, 0.0) and df.fieldtype != "Check":

@@ -25,6 +25,8 @@ def extend_bootinfo(bootinfo):
 				"sql": can_use_sql(),
 				"query_reports": can_save_query_reports(),
 				"web_search": bool(settings.enable_web_search),
+				"memory": bool(settings.enable_memory),
+				"schedules": bool(settings.enable_schedules),
 			},
 		}
 	except Exception:

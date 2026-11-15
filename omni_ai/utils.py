@@ -33,6 +33,18 @@ def get_api_key() -> str:
 		return ""
 
 
+def is_configured() -> bool:
+	"""Is there enough configuration to call the AI provider?"""
+	try:
+		settings = get_settings()
+	except Exception:
+		return False
+	if settings.provider == "OpenAI-compatible":
+		# a local model server may need no key, but it does need an address and a model
+		return bool((settings.base_url or "").strip() and (settings.model or "").strip())
+	return bool(get_api_key())
+
+
 def setting_roles(fieldname: str, default=ADMIN_ROLES) -> set:
 	rows = get_settings().get(fieldname) or []
 	roles = {row.role for row in rows if row.role}

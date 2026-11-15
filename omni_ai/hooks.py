@@ -38,4 +38,5 @@ add_to_apps_screen = [
 
 scheduler_events = {
 	"daily": ["omni_ai.tasks.daily_cleanup"],
+	"hourly": ["omni_ai.engine.schedule.run_due"],
 }

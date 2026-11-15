@@ -12,6 +12,7 @@ frappe.ui.form.on("AI Assistant Settings", {
 				callback(r) {
 					const res = r.message || {};
 					let html = `<p>${frappe.utils.escape_html(res.message || "")}</p>`;
+					(res.notes || []).forEach((n) => (html += `<p>${frappe.utils.escape_html(n)}</p>`));
 					if (res.models && res.models.length) {
 						html += `<p class="text-muted small">${__("Models available to this key")}:</p><p class="small">${res.models
 							.map((m) => `<code>${frappe.utils.escape_html(m)}</code>`)
