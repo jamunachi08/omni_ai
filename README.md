@@ -1,6 +1,15 @@
-# AI Assistant for ERPNext and Frappe
+# Neotec AI for ERPNext and Frappe
 
-A white-label AI assistant that lives inside the ERPNext / Frappe desk. Users chat with it from a side
+Three things in one app, built to run a company on ERPNext with fewer mistakes and less manual work:
+
+1. **Entry checks** stop wrong entries at the moment of saving: duplicates, unusual prices and
+   amounts, wrong dates, missing data. Fixed rules, no AI involved.
+2. **The Control Room** shows every morning what needs attention in sales, purchasing, accounts,
+   stock, projects and HR, and holds what the assistant prepared for your approval.
+3. **The assistant** answers questions, analyses data, builds reports, and prepares documents and
+   emails that take effect only when a person approves them.
+
+The assistant is a white-label AI assistant that lives inside the ERPNext / Frappe desk. Users chat with it from a side
 panel on any screen or from a full page. It answers general questions, analyses the site's data with the
 user's own permissions, draws charts, exports spreadsheets, drafts reports that the user can save into
 the system's report list, and prepares document changes that run only after the user confirms.
@@ -29,6 +38,93 @@ the interface mentions the AI vendor unless you choose to show it.
 | **Accuracy checks** | Large figures in an answer are traced to the query results; a report draft gets an independent review before it is shown. |
 | **Scheduled tasks** | "Email me this every Monday at 8" runs the question on a schedule and emails the result. |
 | **Automations** | Starts workflows you register (for example n8n webhooks) after the user confirms. |
+| **Knowledge library** | Answers from your own policies, manuals and procedures, and names the document it used. |
+| **Key figures** | Summaries open with headline tiles (revenue, orders, overdue…) taken from the queries. |
+| **Email drafts** | "Send the customer a reminder" prepares the email on a card; it goes out only when the user presses Send. |
+| **Writing help** | A small button on long text fields in any form: fix spelling, translate Arabic ↔ English, improve, make formal, shorten. Always a preview first. |
+| **Alerts** | A scheduled task can stay silent unless there is something to report, and can also post to Slack, Microsoft Teams or Google Chat. |
+| **Read-only chats** | A lock button makes a conversation look-only: nothing can be proposed or changed from it. |
+| **Privacy shield** | Personal data is masked before it leaves your server, and sensitive DocTypes are never sent to an outside AI provider. |
+
+## How the three parts work together
+
+| Area | Mistakes stopped at entry | Watched in the Control Room | Prepared for approval |
+|---|---|---|---|
+| **Sales** | Selling below cost, price far from the price list, unusually large invoice, wrong dates, duplicate customer | Orders past delivery date, delivered but not invoiced, expired quotations, old drafts | Follow-up emails, invoices and tasks |
+| **Purchasing** | Supplier invoice entered twice, price well above the last purchase, unusually large invoice | Orders past their required date, received but not invoiced, pending material requests | Supplier chasers, purchase documents |
+| **Accounts** | Payment reference used twice, unusually large payment or journal, dates out of range | Overdue receivables and payables, unallocated payments, unposted drafts | Payment reminders, journal drafts |
+| **Stock** | Stock entry dates out of range, duplicate items | Negative stock, items below reorder level, expiring and expired batches | Material requests, transfers |
+| **Projects** | Tasks and projects that end before they start | Overdue tasks, projects past their end date, unsubmitted timesheets | Task updates, reminders |
+| **HR** (with the HR app) | Employee entered twice, unusual expense claims, leave that ends before it starts | Leave and expense claims waiting, contracts and passports about to expire | Reminders, HR documents |
+| **Master data** | Duplicate customers, suppliers, items and tax IDs | Customers and suppliers without a tax ID, stock items without a cost | Corrections |
+
+Nothing in the right-hand column happens by itself: every document and email waits for a person.
+
+## Entry checks
+
+Rules live under **AI Assistant Check Rule** (System Managers). They run on every save and submit,
+from the desk, the API, imports and the assistant alike. They are plain rules evaluated by code:
+instant, free, and the same entry always gets the same verdict.
+
+| Check | What it catches |
+|---|---|
+| **Duplicate** | Another document with the same values in the listed fields. Optionally ignoring capitals, spaces and punctuation, so "Al-Noor Trading" and "alnoor trading" are the same customer. |
+| **Required** | Fields that must be filled, including fields in a child table (`items.cost_center`). |
+| **Condition** | A field must be =, >, <, in a list… compared with a value or with another field (`field:posting_date`). |
+| **Date Window** | A date in the future, or more than N days in the past. |
+| **Price Deviation** | An item rate above or below the last purchase rate, the cost (valuation rate) or the price list rate by more than a tolerance. Compared per stock unit in company currency. |
+| **Unusual Amount** | An amount several times the usual one for that customer, supplier or employee (the median of their last 50 documents; needs at least 5). |
+
+- **When It Fails**: *Warn* shows a message and lets the user continue; *Block* stops the save.
+  **Roles That May Continue Anyway** turns a block into a warning for those roles.
+- **Run On**: every save (including drafts) or only on submit.
+- About 25 starter rules are created at install for the DocTypes your site has. **They all start as
+  warnings**, so installing the app cannot stop anyone's work. Turn the ones that matter to you
+  into Block, adjust tolerances, delete what you do not want; your changes are kept on upgrade.
+- Every hit is recorded in **AI Assistant Check Log**, including entries that were stopped, and
+  summarised in the Control Room.
+- A rule that cannot run (for example its field was removed) is skipped and logged in the Error
+  Log; it never stops people from working.
+- Switch everything off with *Check Entries When They Are Saved* in the settings.
+
+Checks reduce mistakes; they do not replace approval workflows, ERPNext's own validations or a
+review of the books.
+
+## Control Room
+
+Open it from the search bar ("Control Room") or the assistant page's menu.
+
+- **What needs attention**: about 30 fixed monitors across the areas in the table above. Each shows
+  a count and, where it makes sense, an amount; a click opens the same records as a filtered list,
+  and **Ask** hands the finding to the assistant. Counts follow the viewer's permissions, so each
+  person sees their own picture. HR monitors appear only when the HR app is installed.
+- **Waiting for your approval**: every card the assistant prepared for you that you have not
+  decided yet, from chats and from scheduled tasks, with Approve and Dismiss.
+- **Entry checks, last 7 days** (System Managers): how many entries were questioned or stopped, by
+  rule.
+
+The assistant can read the same findings ("what needs my attention today?").
+
+### Automation with approval
+
+A scheduled task marked **May Prepare Actions for Approval** can prepare documents and emails while
+nobody is at the screen: "every morning, prepare reminder emails for invoices more than 30 days
+overdue", "every Sunday, draft material requests for items below their reorder level". Nothing is
+created or sent by the run. Each item waits in the Control Room; the result email lists what is
+waiting. Approved documents pass the same entry checks as hand-made ones.
+
+Switch this off for the whole site with *Scheduled Tasks May Prepare Actions for Approval*.
+
+## Calculations, document trail and printing
+
+- **Unusual values, forecasts and shares** are computed by code on query results, not estimated:
+  "any unusual purchase prices this quarter?", "forecast next month's sales", "which customers make
+  up 80% of revenue?". A forecast is a straight-line trend with a range and is presented as an
+  estimate.
+- **Document trail**: "where is this order stuck?" follows a document back to what it came from and
+  forward to what was made from it (order → delivery → invoice → payment) and names the missing step.
+- **Print**: every answer has a print button that opens a clean page with the tiles, tables and
+  charts; the browser's print dialog also saves it as PDF.
 
 ## Install
 
@@ -93,6 +189,64 @@ effect. Everything else (permissions, cards, reports, memory, schedules, checks)
 Answer quality depends on the model: small local models often choose the wrong fields or stop
 early. Try your usual questions before rolling one out.
 
+## Privacy shield
+
+On the **Privacy and Knowledge** tab of the settings:
+
+- **Mask Personal Data.** Before text goes to the AI provider, email addresses, phone numbers
+  (international numbers written with `+`, and Saudi mobiles), IBANs, payment-card numbers and Saudi
+  ID / Iqama numbers are replaced with placeholders such as `[[EMAIL_1]]`. The list of what each
+  placeholder stands for stays on your server. The answer, and any lookups the assistant asks for,
+  are converted back, so users read real values and "find the customer with this email" still
+  works. IBAN, card and ID numbers are recognised by their check digits, so ordinary amounts and
+  document numbers are left alone. Masking also applies to writing help, report review, titles and
+  the embeddings service.
+  **Not masked:** names, addresses, free text, images and PDF pages. It reduces what leaves the
+  server; it is not anonymisation.
+- **Where the AI Provider Runs** is your statement: an outside service, inside the country, or on
+  your own servers.
+- **Sensitive DocTypes** (for example Employee, Salary Slip) are never read for an outside
+  provider: not by queries, SQL or reports based on them, not even the name of an open record.
+  Child tables of a sensitive DocType are covered too. With the provider inside the country or on
+  your own servers they are available again, under the user's normal permissions.
+
+A report that reads a sensitive DocType through its own code, but is based on another DocType, is
+not caught by this list: switch off *Allow Running Existing Reports* or restrict that report's roles
+if this matters.
+
+## Knowledge library
+
+Add documents under **AI Assistant Knowledge** (System Managers): attach a PDF, Word (.docx), Excel,
+CSV or text file, or paste the text. On save the text is read and cut into passages; the Status
+field shows how many. The assistant searches the passages for policy and procedure questions and
+names the document it answers from.
+
+- **Only for Roles** limits a document to users with one of those roles. The library cannot be
+  read any other way from the chat.
+- Search is by shared words, in English and Arabic. If *Recall by meaning* is set up for memory,
+  passages are also matched by meaning.
+- Scanned PDFs have no text to read: paste the text instead. One document holds up to about
+  400,000 characters.
+- What you add is sent to the AI provider when it is relevant to a question. Do not add documents
+  that must not leave your organisation unless the provider runs on your own servers.
+
+## Writing help, email and read-only chats
+
+- **Writing help.** Every editable long text field in a form gets a small ✦ button with six
+  actions. The user sees the original beside the suggestion, can edit it (plain fields), and
+  nothing changes until they press *Use this text* and save. Formatting in rich-text fields is
+  kept. If a number in the suggestion differs from the original, a warning says which.
+  Switch it off with *Writing Help on Form Fields*.
+- **Email.** The assistant can prepare an email (to at most 10 addresses). The card shows
+  recipients, subject and the full text; *Send email* sends it as the user through the site's
+  outgoing email account and, when it belongs to a document, files it in that document's
+  timeline. Switch it off with *Allow Drafting Emails*.
+- **Read-only chats.** The lock button in the chat header switches a conversation to read-only:
+  the assistant can look things up and explain, but has no way to propose a change, a report, a
+  note, a schedule, an email or an automation.
+- **Never Change These DocTypes** (Capabilities tab) lists DocTypes the assistant must not propose
+  changes for, in addition to the system DocTypes that are always excluded.
+
 ## Limits and outages
 
 - **Messages per minute** (default 10) and **Daily message limit** stop one user from flooding the
@@ -147,6 +301,19 @@ emailed with its tables and any exported files; charts are replaced by a link to
 - Unattended runs cannot propose changes, reports, notes or automations: nobody is there to confirm.
 - Users can send results only to their own address; System Managers can add other recipients.
 - A disabled user's tasks stop running.
+
+### Alerts and team chat
+
+- **Send Only When There Is Something to Report** turns a task into an alert ("warn me when any
+  invoice is more than 60 days overdue"). It still runs on its schedule, but when the assistant
+  finds nothing, nobody is notified and *Last Result* shows "Nothing to report". Users can ask for
+  this in the chat.
+- **Also Post To** sends a short text version to a Slack, Microsoft Teams or Google Chat channel
+  through that channel's incoming webhook, with a link to the full result. Only addresses of the
+  chosen service are accepted. To allow another host (for example a self-hosted Mattermost, which
+  accepts the Slack format) add it to `site_config.json`:
+  `"ai_assistant_chat_webhook_hosts": ["chat.example.com"]`.
+  Anyone in that channel sees the summary, so use a channel whose members may see the data.
 
 ## Automations (n8n and other webhooks)
 
@@ -245,6 +412,13 @@ omni_ai/
   engine/client.py       streaming client for the Messages API (requests only)
   engine/openai_client.py  the same interface for OpenAI-compatible services; embeddings
   engine/guard.py        per-minute limit, monthly budget, circuit breaker
+  engine/shield.py       personal-data masking (plain Python, no Frappe import)
+  engine/delivery.py     posting to Slack, Teams and Google Chat
+  engine/simple.py       omni_ai.ask() for other apps
+  checks/                entry-check engine and starter rules (no AI)
+  control/               Control Room monitors (no AI)
+  api/control.py         Control Room page data
+  api/writing.py         writing help for form fields
   engine/agent.py        the reply loop: history, model call, tools, persistence
   engine/stream.py       run events (Redis list + realtime), stop flag
   engine/prompt.py       system prompt
@@ -253,7 +427,7 @@ omni_ai/
   engine/review.py       independent review of report drafts
   engine/schedule.py     scheduled tasks: due check, run, email
   tools/                 data, reports, sql (guard), display, actions, memory, schedule,
-                         automation, workspace
+                         automation, knowledge, email, analysis, trail, workspace
   ai_assistant/          DocTypes, the full-page view, the usage report
   public/js/omni_ai.js   the whole interface, one plain script
   public/css/omni_ai.css
@@ -274,6 +448,18 @@ Add a tool: create a `Tool(name, description, input_schema, handler)` in a modul
 add it to `all_tools()` in `tools/__init__.py`. Handlers receive `(args, ctx)` and return a dict; raise
 `ToolError` for problems the model can correct.
 
+### Using the AI from your own apps
+
+```python
+import omni_ai
+
+summary = omni_ai.ask("Summarise this complaint in one sentence: " + text, system="Reply in Arabic.")
+```
+
+`ask()` uses the provider, key, personal-data masking, monthly budget and outage pause from the
+settings. It has no tools, so it cannot read or change anything in the system. It raises
+`frappe.ValidationError` when the assistant is not set up or the user's budget is used up.
+
 ## Known limits
 
 - Query Report filters are always mandatory (see above). Script Reports are not generated.
@@ -284,6 +470,24 @@ add it to `all_tools()` in `tools/__init__.py`. Handlers receive `(args, ctx)` a
 - The per-minute limit uses fixed one-minute windows, so a short burst across two windows can
   briefly exceed it. The monthly budget is checked before a reply starts; the reply that crosses
   it is allowed to finish.
+- Entry checks compare with what is in the system: a price check needs a last purchase rate or a
+  cost on the item, an amount check needs five earlier documents. With no history they stay silent.
+- The duplicate check that ignores spelling details finds "Al-Noor Trading" / "alnoor trading" but
+  not a name written as one word against the same name written as three.
+- Control Room monitors are fixed in code; they cannot be added or edited from the desk yet. Use a
+  scheduled alert for a condition of your own.
+- "Items below their reorder level" counts all such items and opens the standard reorder report; it
+  is not limited to the warehouses a user may see.
+- A forecast is a straight line through the history. It knows nothing about seasons or events.
+- Masking recognises formats, not meaning: names and free text pass through, and a phone number
+  written without `+` in a non-Saudi format is not recognised. A 10-digit number that happens to
+  pass the ID check digit (about one in ten) is masked; the user still sees it correctly, but the
+  assistant cannot calculate with it.
+- Writing help does not count towards the monthly token budget (it does count towards the
+  per-minute limit). It handles up to 12,000 characters per field and is not offered inside
+  child-table rows.
+- The Teams message format follows Microsoft's Workflows webhook; older Office 365 connectors may
+  show it differently.
 - Outside AI agents cannot connect to this app directly. That is the separate **ERP MCP Server**
   app, which builds on this one.
 - Scheduled tasks run hourly at the earliest and email text and tables, not chart images.

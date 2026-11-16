@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2026-11-15 15:00:00.000000",
+ "creation": "2026-11-16 12:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -49,7 +49,10 @@
   "reports_workspace",
   "sec_actions",
   "enable_write_actions",
+  "enable_email",
+  "protected_doctypes",
   "col_actions",
+  "enable_writing_help",
   "enable_web_search",
   "web_search_max_uses",
   "tab_smart",
@@ -73,6 +76,21 @@
   "max_schedules_per_user",
   "sec_automations",
   "enable_automations",
+  "tab_privacy",
+  "sec_privacy",
+  "data_location",
+  "mask_personal_data",
+  "col_privacy",
+  "sensitive_doctypes",
+  "sec_knowledge",
+  "enable_knowledge",
+  "tab_controls",
+  "sec_checks",
+  "enable_entry_checks",
+  "check_rules_seeded",
+  "col_controls",
+  "enable_control_room",
+  "enable_proposals",
   "tab_limits",
   "daily_message_limit",
   "messages_per_minute",
@@ -192,7 +210,7 @@
    "fieldname": "brand_name",
    "fieldtype": "Data",
    "label": "Assistant Name",
-   "default": "Assistant",
+   "default": "Neotec AI",
    "reqd": 1
   },
   {
@@ -358,8 +376,29 @@
    "description": "Every change is shown to the user first and runs with their own permissions only after they confirm."
   },
   {
+   "fieldname": "enable_email",
+   "fieldtype": "Check",
+   "label": "Allow Drafting Emails",
+   "default": "1",
+   "description": "The assistant can prepare an email. The user sees recipients, subject and text on a card and it is sent only when they confirm."
+  },
+  {
+   "fieldname": "protected_doctypes",
+   "fieldtype": "Table MultiSelect",
+   "label": "Never Change These DocTypes",
+   "options": "AI Assistant DocType",
+   "description": "The assistant will not propose creating, changing, submitting, cancelling or deleting documents of these types."
+  },
+  {
    "fieldname": "col_actions",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enable_writing_help",
+   "fieldtype": "Check",
+   "label": "Writing Help on Form Fields",
+   "default": "1",
+   "description": "Adds a small button to long text fields: fix spelling, translate Arabic and English, improve, make formal, shorten. The user always sees a preview first."
   },
   {
    "fieldname": "enable_web_search",
@@ -500,6 +539,96 @@
    "description": "Lets the assistant start workflows you register under AI Assistant Automation (for example n8n webhooks). Every run needs the user's confirmation."
   },
   {
+   "fieldname": "tab_privacy",
+   "fieldtype": "Tab Break",
+   "label": "Privacy and Knowledge"
+  },
+  {
+   "fieldname": "sec_privacy",
+   "fieldtype": "Section Break",
+   "label": "Data Leaving This Site"
+  },
+  {
+   "fieldname": "data_location",
+   "fieldtype": "Select",
+   "label": "Where the AI Provider Runs",
+   "options": "Outside (external service)\nInside the country\nOn our own servers",
+   "default": "Outside (external service)",
+   "description": "Your statement of where the configured provider processes data. The list on the right is enforced only for an outside service."
+  },
+  {
+   "fieldname": "mask_personal_data",
+   "fieldtype": "Check",
+   "label": "Mask Personal Data",
+   "default": "0",
+   "description": "Email addresses, phone numbers, IBANs, card numbers and Saudi ID / Iqama numbers are replaced with placeholders before text is sent to the AI provider, and put back in the answer. Names, images and PDF pages are not masked."
+  },
+  {
+   "fieldname": "col_privacy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sensitive_doctypes",
+   "fieldtype": "Table MultiSelect",
+   "label": "Sensitive DocTypes",
+   "options": "AI Assistant DocType",
+   "description": "Records of these types (for example Employee, Salary Slip) are never read for an outside AI provider. They stay available when the provider runs inside the country or on your own servers."
+  },
+  {
+   "fieldname": "sec_knowledge",
+   "fieldtype": "Section Break",
+   "label": "Knowledge Library"
+  },
+  {
+   "fieldname": "enable_knowledge",
+   "fieldtype": "Check",
+   "label": "Answer from the Knowledge Library",
+   "default": "1",
+   "description": "Lets the assistant search the documents you add under AI Assistant Knowledge (policies, manuals, procedures) and name the document it used."
+  },
+  {
+   "fieldname": "tab_controls",
+   "fieldtype": "Tab Break",
+   "label": "Controls and Automation"
+  },
+  {
+   "fieldname": "sec_checks",
+   "fieldtype": "Section Break",
+   "label": "Entry Checks"
+  },
+  {
+   "fieldname": "enable_entry_checks",
+   "fieldtype": "Check",
+   "label": "Check Entries When They Are Saved",
+   "default": "1",
+   "description": "Runs the rules under AI Assistant Check Rule on every save and submit: duplicates, unusual prices and amounts, wrong dates, missing data. These checks are fixed rules; they do not call the AI provider."
+  },
+  {
+   "fieldname": "check_rules_seeded",
+   "fieldtype": "Check",
+   "label": "Starter Rules Created",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_controls",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enable_control_room",
+   "fieldtype": "Check",
+   "label": "Control Room",
+   "default": "1",
+   "description": "A page that counts what needs attention in sales, purchasing, accounts, stock, projects and HR, and lists what is waiting for approval."
+  },
+  {
+   "fieldname": "enable_proposals",
+   "fieldtype": "Check",
+   "label": "Scheduled Tasks May Prepare Actions for Approval",
+   "default": "1",
+   "description": "A scheduled task marked for it can prepare documents and emails. They wait in the Control Room until a person approves each one; nothing is created or sent before that."
+  },
+  {
    "fieldname": "tab_limits",
    "fieldtype": "Tab Break",
    "label": "Limits and Logs"
@@ -565,7 +694,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-15 15:00:00.000000",
+ "modified": "2026-11-16 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "AI Assistant",
  "name": "AI Assistant Settings",

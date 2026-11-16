@@ -27,6 +27,8 @@ def extend_bootinfo(bootinfo):
 				"web_search": bool(settings.enable_web_search),
 				"memory": bool(settings.enable_memory),
 				"schedules": bool(settings.enable_schedules),
+				"writing": bool(settings.get("enable_writing_help")),
+				"control_room": bool(settings.get("enable_control_room")),
 			},
 		}
 	except Exception:

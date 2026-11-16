@@ -1,7 +1,7 @@
 {
  "actions": [],
  "autoname": "hash",
- "creation": "2026-11-15 15:00:00.000000",
+ "creation": "2026-11-16 12:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -16,6 +16,10 @@
   "sec_delivery",
   "user",
   "recipients",
+  "only_when_needed",
+  "allow_proposals",
+  "chat_channel",
+  "chat_webhook",
   "col_2",
   "next_run",
   "last_run",
@@ -100,6 +104,31 @@
    "description": "One address per line. Only System Managers can send to addresses other than their own."
   },
   {
+   "fieldname": "only_when_needed",
+   "fieldtype": "Check",
+   "label": "Send Only When There Is Something to Report",
+   "description": "Turns the task into an alert: when the assistant finds nothing that needs attention, nobody is notified."
+  },
+  {
+   "fieldname": "allow_proposals",
+   "fieldtype": "Check",
+   "label": "May Prepare Actions for Approval",
+   "description": "Lets this task prepare documents and emails. Each one waits in the Control Room for your approval."
+  },
+  {
+   "fieldname": "chat_channel",
+   "fieldtype": "Select",
+   "label": "Also Post To",
+   "options": "\nSlack\nMicrosoft Teams\nGoogle Chat"
+  },
+  {
+   "fieldname": "chat_webhook",
+   "fieldtype": "Small Text",
+   "label": "Incoming Webhook URL",
+   "depends_on": "chat_channel",
+   "description": "The incoming-webhook address of the channel. Must be an https address of the chosen service."
+  },
+  {
    "fieldname": "col_2",
    "fieldtype": "Column Break"
   },
@@ -132,7 +161,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-15 15:00:00.000000",
+ "modified": "2026-11-16 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "AI Assistant",
  "name": "AI Assistant Schedule",

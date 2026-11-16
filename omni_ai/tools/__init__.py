@@ -7,7 +7,20 @@ from omni_ai.utils import clip, dumps, to_int
 
 
 def all_tools() -> list:
-	from omni_ai.tools import actions, automation, data, display, memory, reports, schedule, sql
+	from omni_ai.tools import (
+		actions,
+		analysis,
+		automation,
+		data,
+		display,
+		email,
+		knowledge,
+		memory,
+		reports,
+		schedule,
+		sql,
+		trail,
+	)
 
 	return [
 		*data.TOOLS,
@@ -18,10 +31,16 @@ def all_tools() -> list:
 		*memory.TOOLS,
 		*schedule.TOOLS,
 		*automation.TOOLS,
+		*knowledge.TOOLS,
+		*email.TOOLS,
+		*analysis.TOOLS,
+		*trail.TOOLS,
 	]
 
 
 DATA_TOOLS = {"query_data", "run_sql", "run_report", "get_document", "find_documents"}
+# tools that put a confirmation card in front of the user; not offered in a read-only conversation
+CHANGE_TOOLS = {"propose_document_action", "propose_report", "remember", "propose_schedule", "trigger_automation", "draft_email"}
 
 
 def available_tools(ctx: ToolContext) -> dict:
@@ -29,6 +48,8 @@ def available_tools(ctx: ToolContext) -> dict:
 	tools = {}
 	for tool in all_tools():
 		try:
+			if ctx.read_only and tool.name in CHANGE_TOOLS:
+				continue
 			if tool.enabled is None or tool.enabled(ctx):
 				tools[tool.name] = tool
 		except Exception:
@@ -47,7 +68,11 @@ def describe_call(tool, args: dict) -> str:
 		subject = args.get("query") or args.get("doctype") or ""
 	if tool.name in ("show_chart", "show_table", "export_data", "run_sql"):
 		subject = args.get("title") or args.get("filename") or ""
-	if tool.name == "remember":
+	if tool.name in ("remember", "show_kpis"):
+		subject = ""
+	if tool.name == "search_knowledge":
+		subject = f"for “{clip(args.get('query', ''), 40)}”"
+	if tool.name == "draft_email":
 		subject = ""
 	if tool.name == "trigger_automation":
 		subject = args.get("automation") or ""

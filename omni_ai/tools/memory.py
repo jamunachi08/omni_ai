@@ -64,7 +64,12 @@ def embed_texts(texts: list) -> list:
 
 	settings = get_settings()
 	key = settings.get_password("embeddings_api_key", raise_exception=False) or ""
-	return embed(settings.embeddings_base_url, key, settings.embeddings_model, [clip(t, 2000) for t in texts])
+	texts = [clip(t, 2000) for t in texts]
+	if settings.get("mask_personal_data"):
+		from omni_ai.engine.shield import Vault, mask
+
+		texts = [mask(t, Vault()) for t in texts]
+	return embed(settings.embeddings_base_url, key, settings.embeddings_model, texts)
 
 
 def _cosine(a: list, b: list) -> float:

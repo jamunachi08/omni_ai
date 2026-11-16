@@ -24,7 +24,7 @@ import re
 
 import frappe
 from omni_ai.tools.base import Tool, ToolError, columns_from_names, tabular_reply
-from omni_ai.tools.data import HIDDEN_DOCTYPES, SECRET_FIELD_RE, can_read
+from omni_ai.tools.data import HIDDEN_DOCTYPES, SECRET_FIELD_RE, WITHHELD_MESSAGE, can_read, withheld
 from omni_ai.utils import can_use_sql, clip, to_int
 
 STATEMENT_TIMEOUT = 45  # seconds
@@ -186,6 +186,8 @@ def validate_select(query: str, check_permissions: bool = True) -> dict:
 			raise SQLGuardError(f"{doctype} is a Single DocType and has no table. Use get_document instead.")
 		if getattr(meta, "is_virtual", 0):
 			raise SQLGuardError(f"{doctype} is a virtual DocType and has no table.")
+		if check_permissions and withheld(doctype, meta):
+			raise SQLGuardError(WITHHELD_MESSAGE.format(doctype), denied=True)
 		if check_permissions and not can_read(doctype, meta):
 			raise SQLGuardError(f"The current user does not have permission to read {doctype}.", denied=True)
 

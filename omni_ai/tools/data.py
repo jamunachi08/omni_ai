@@ -48,10 +48,28 @@ HIDDEN_DOCTYPES = {
 	"Webhook",
 	"Push Notification Settings",
 	"AI Assistant Automation",
+	"AI Assistant Knowledge",
 }
 
 
 # -- shared checks --------------------------------------------------------------
+
+
+def withheld(doctype: str, meta=None) -> bool:
+	"""Is this DocType marked sensitive while the AI provider is an outside service?"""
+	blocked = getattr(frappe.local, "omni_ai_withheld", None)
+	if not blocked:
+		return False
+	if doctype in blocked:
+		return True
+	meta = meta or frappe.get_meta(doctype)
+	return bool(meta.istable and any(parent in blocked for parent in parents_of(doctype)))
+
+
+WITHHELD_MESSAGE = (
+	"'{0}' is marked as sensitive, and its records are not sent to an outside AI provider. Tell the user this data "
+	"is not available in the assistant; they can open it in the desk."
+)
 
 
 def get_meta_or_error(doctype: str):
@@ -64,7 +82,10 @@ def get_meta_or_error(doctype: str):
 		raise ToolError(f"DocType '{doctype}' does not exist.{hint}")
 	if doctype in HIDDEN_DOCTYPES:
 		raise ToolError(f"'{doctype}' is not available to the assistant.", denied=True)
-	return frappe.get_meta(doctype)
+	meta = frappe.get_meta(doctype)
+	if withheld(doctype, meta):
+		raise ToolError(WITHHELD_MESSAGE.format(doctype), denied=True)
+	return meta
 
 
 def parents_of(child_doctype: str) -> list:
@@ -87,7 +108,7 @@ def parents_of(child_doctype: str) -> list:
 
 def can_read(doctype: str, meta=None) -> bool:
 	meta = meta or frappe.get_meta(doctype)
-	if doctype in HIDDEN_DOCTYPES:
+	if doctype in HIDDEN_DOCTYPES or withheld(doctype, meta):
 		return False
 	if meta.istable:
 		return any(frappe.has_permission(p, "read") for p in parents_of(doctype))
@@ -166,7 +187,7 @@ def search_doctypes(args, ctx):
 		rows = list(seen.values())
 	out = []
 	for row in rows:
-		if row.name in HIDDEN_DOCTYPES or not frappe.has_permission(row.name, "read"):
+		if row.name in HIDDEN_DOCTYPES or withheld(row.name) or not frappe.has_permission(row.name, "read"):
 			continue
 		item = {"doctype": row.name, "module": row.module}
 		if row.issingle:

@@ -144,6 +144,57 @@ def build_system_prompt(user: str, tool_names: set) -> str:
 			"request matches one, check list_automations and propose it with trigger_automation; the user confirms."
 		)
 
+	if "analyze_data" in tool_names:
+		sections.append(
+			"# Calculations and process questions\n"
+			"- For 'anything unusual?', forecasts, and 'who makes up most of X?', query the data and then call "
+			"analyze_data; do not estimate these yourself. Present a forecast as an estimate with its range.\n"
+			"- For 'where is this order stuck?' or 'was this invoiced / paid / delivered?', call trace_document and say "
+			"which step is missing.\n"
+			+ (
+				"- For 'what needs my attention?' and briefings, start from list_exceptions, most urgent first, then look "
+				"into the records behind the important ones.\n"
+				if "list_exceptions" in tool_names
+				else ""
+			)
+			+ "- Saving a document can be stopped or questioned by the organisation's entry checks (duplicates, unusual "
+			"prices or amounts, wrong dates). If a confirmed action fails for that reason, explain the reason and help "
+			"fix the entry; never look for a way around a check."
+		)
+
+	if "search_knowledge" in tool_names:
+		sections.append(
+			"# Knowledge library\n"
+			"The organisation keeps its own documents (policies, manuals, procedures) in a knowledge library. For a "
+			"question about how things are done here or what a policy says, call search_knowledge first and answer "
+			"from the passages, naming the document. If the library does not cover it, say so before offering general "
+			"knowledge, and make clear which is which."
+		)
+
+	if "draft_email" in tool_names:
+		sections.append(
+			"# Email\n"
+			"When the user asks you to email someone, or to follow up or remind a customer or supplier, prepare it with "
+			"draft_email. Use real addresses from the user's message or from records; never invent one. The user "
+			"reviews and sends it from the card."
+		)
+
+	if "show_kpis" in tool_names:
+		sections.append(
+			"# Key figures\n"
+			"For overviews and summaries ('how are sales this month', 'give me a summary of receivables'), lead with "
+			"show_kpis: up to six headline figures taken from your queries, then a chart or table if useful, then a "
+			"short commentary."
+		)
+
+	if settings.get("mask_personal_data"):
+		sections.append(
+			"# Placeholders\n"
+			"Email addresses, phone numbers, bank and card numbers and ID numbers reach you as placeholders such as "
+			"[[EMAIL_1]] or [[PHONE_2]]. Treat a placeholder as the real value: copy it exactly wherever the value is "
+			"needed (in answers, filters, emails). The user sees the real value. Do not comment on the placeholders."
+		)
+
 	sections.append(
 		"# Accuracy\n"
 		"- Every figure you state must come from a tool result in this conversation. Never add up, average or "

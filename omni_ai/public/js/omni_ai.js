@@ -33,6 +33,9 @@
 		edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>',
 		trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>',
 		doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
+		print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/></svg>',
+		lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
+		mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
 		link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5h5v5M19 5l-8 8M11 7H6a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1v-5"/></svg>',
 	};
 	const PALETTE = ["#4F46E5", "#0EA5E9", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#14B8A6", "#EC4899"];
@@ -474,6 +477,68 @@
 		return node;
 	}
 
+	// A clean, printable copy of one answer (the browser's print dialog also saves it as PDF).
+	function print_answer(message) {
+		const copy = message.body.cloneNode(true);
+		copy.querySelectorAll(".omni-steps, .omni-action, .omni-msg-tools, button, input, .omni-table-tools").forEach((n) => n.remove());
+		// drawn charts are canvases, which do not survive cloning: print them as images
+		const originals = message.body.querySelectorAll("canvas");
+		copy.querySelectorAll("canvas").forEach((canvas, i) => {
+			try {
+				const img = document.createElement("img");
+				img.src = originals[i].toDataURL("image/png");
+				img.style.maxWidth = "100%";
+				canvas.replaceWith(img);
+			} catch (e) {
+				canvas.remove();
+			}
+		});
+		copy.querySelectorAll("[style*='max-height'], .omni-table-scroll").forEach((n) => {
+			n.style.maxHeight = "none";
+			n.style.overflow = "visible";
+		});
+		const brand = (frappe.boot.omni_ai && frappe.boot.omni_ai.brand_name) || "";
+		const title = (message.chat.$(".omni-conv-title") || {}).textContent || brand;
+		const styles = Array.from(document.querySelectorAll("link[rel='stylesheet']"))
+			.filter((l) => /omni_ai/.test(l.href))
+			.map((l) => `<link rel="stylesheet" href="${l.href}">`)
+			.join("");
+		const win = window.open("", "_blank");
+		if (!win) {
+			frappe.show_alert({ message: __("Allow pop-ups for this site to print."), indicator: "orange" });
+			return;
+		}
+		win.document.write(`<!doctype html><html dir="${document.documentElement.dir || "ltr"}"><head><meta charset="utf-8"><title>${esc(title)}</title>${styles}
+			<style>body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:28px;color:#111;background:#fff}
+			.omni-print-head{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #d1d5db;padding-bottom:10px;margin-bottom:18px}
+			.omni-print-head h1{font-size:18px;margin:0}.omni-print-head span{font-size:12px;color:#6b7280}
+			table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #e5e7eb;padding:5px 8px;text-align:start;font-size:12px}
+			.omni-print-foot{margin-top:24px;font-size:11px;color:#6b7280}@media print{body{margin:12mm}}</style></head>
+			<body class="omni-print"><div class="omni-print-head"><h1>${esc(title)}</h1><span>${esc(brand)} · ${esc(frappe.datetime.str_to_user(frappe.datetime.now_datetime()))}</span></div>
+			<div class="omni-root">${copy.innerHTML}</div>
+			<div class="omni-print-foot">${esc(__("Prepared with {0} for {1}. Check important figures against the system.", [brand, frappe.session.user_fullname || frappe.session.user]))}</div></body></html>`);
+		win.document.close();
+		win.focus();
+		setTimeout(() => win.print(), 400);
+	}
+
+	function kpis_view(part) {
+		const node = el(`<div class="omni-kpis-wrap">${part.title ? `<div class="omni-kpis-title" dir="auto">${esc(part.title)}</div>` : ""}<div class="omni-kpis"></div></div>`);
+		const grid = node.querySelector(".omni-kpis");
+		(part.items || []).forEach((item) => {
+			const arrow = item.trend === "up" ? "▲" : item.trend === "down" ? "▼" : item.trend === "flat" ? "●" : "";
+			const tone = item.good === true ? "is-good" : item.good === false ? "is-bad" : "";
+			grid.appendChild(
+				el(`<div class="omni-kpi">
+					<div class="omni-kpi-label" dir="auto">${esc(item.label)}</div>
+					<div class="omni-kpi-value" dir="auto">${esc(item.value)}</div>
+					${item.note || arrow ? `<div class="omni-kpi-note ${tone}" dir="auto">${arrow ? `<span class="omni-kpi-arrow">${arrow}</span>` : ""}${esc(item.note || "")}</div>` : ""}
+				</div>`)
+			);
+		});
+		return node;
+	}
+
 	function action_view(part, chat) {
 		const is_report = part.action_type === "Save Report";
 		const kinds = {
@@ -481,6 +546,7 @@
 			"Save Memory": { kicker: __("Remember this?"), confirm: __("Remember"), open: __("Open"), icon: ICONS.spark },
 			"Create Schedule": { kicker: __("Scheduled task"), confirm: __("Schedule it"), open: __("Open schedule"), icon: ICONS.history },
 			"Run Automation": { kicker: __("Run this automation?"), confirm: __("Run"), open: __("Open"), icon: ICONS.link },
+			"Send Email": { kicker: __("Email draft: nothing is sent until you confirm"), confirm: __("Send email"), open: __("Open document"), icon: ICONS.mail },
 		};
 		const kind = kinds[part.action_type] || { kicker: __("Needs your confirmation"), confirm: __("Confirm"), open: __("Open"), icon: ICONS.edit };
 		const node = el(`<div class="omni-card omni-action" data-status="${esc(part.status || "Pending")}">
@@ -673,6 +739,9 @@
 			} else if (part.type === "sources") {
 				node = sources_view(part);
 				this.body.appendChild(node);
+			} else if (part.type === "kpis") {
+				node = kpis_view(part);
+				this.body.appendChild(node);
 			} else if (part.type === "notice") {
 				node = el(`<div class="omni-notice">${ICONS.warn}<span dir="auto"></span></div>`);
 				node.querySelector("span").textContent = part.text || "";
@@ -785,9 +854,11 @@
 			if (this.tools) this.tools.remove();
 			this.tools = el(`<div class="omni-msg-tools">
 				<button class="omni-icon-btn" data-act="copy" title="${esc(__("Copy answer"))}">${ICONS.copy}</button>
+				<button class="omni-icon-btn" data-act="print" title="${esc(__("Print or save as PDF"))}" aria-label="${esc(__("Print or save as PDF"))}">${ICONS.print}</button>
 				<button class="omni-icon-btn" data-act="retry" title="${esc(__("Try again"))}">${ICONS.retry}</button>
 			</div>`);
 			this.tools.querySelector("[data-act='copy']").addEventListener("click", () => copy_text(this.text()));
+			this.tools.querySelector("[data-act='print']").addEventListener("click", () => print_answer(this));
 			this.tools.querySelector("[data-act='retry']").addEventListener("click", () => this.chat.regenerate());
 			this.node.appendChild(this.tools);
 			if (!this.text()) this.tools.querySelector("[data-act='copy']").remove();
@@ -835,6 +906,7 @@
 							<div class="omni-conv-title" dir="auto"></div>
 						</div>
 						<div class="omni-head-actions">
+							<button class="omni-icon-btn omni-ro-btn" data-act="readonly" aria-pressed="false" title="${esc(__("Read-only chat: nothing can be changed from it"))}" aria-label="${esc(__("Read-only chat"))}">${ICONS.lock}</button>
 							<button class="omni-icon-btn" data-act="history" title="${esc(__("Chats"))}" aria-label="${esc(__("Chats"))}">${ICONS.history}</button>
 							<button class="omni-icon-btn" data-act="new" title="${esc(__("New chat"))}" aria-label="${esc(__("New chat"))}">${ICONS.plus}</button>
 							<button class="omni-icon-btn" data-act="expand" title="${esc(__("Open full page"))}" aria-label="${esc(__("Open full page"))}">${ICONS.expand}</button>
@@ -872,6 +944,7 @@
 				if (act === "send") this.run ? this.stop() : this.send();
 				else if (act === "new") this.new_chat();
 				else if (act === "history") this.toggle_history();
+				else if (act === "readonly") this.toggle_read_only();
 				else if (act === "close") omni_ai.close();
 				else if (act === "expand") {
 					const name = this.conversation;
@@ -1099,9 +1172,37 @@
 			});
 		}
 
+		set_read_only(on) {
+			this.read_only = !!on;
+			const btn = this.$(".omni-ro-btn");
+			btn.classList.toggle("is-on", this.read_only);
+			btn.setAttribute("aria-pressed", this.read_only ? "true" : "false");
+			this.root.classList.toggle("is-read-only", this.read_only);
+			this.$(".omni-conv-title").setAttribute("data-ro", this.read_only ? __("Read-only") : "");
+		}
+
+		toggle_read_only() {
+			const next = !this.read_only;
+			const done = () => {
+				this.set_read_only(next);
+				frappe.show_alert(
+					{
+						message: next
+							? __("Read-only: in this chat the assistant can look things up but cannot propose any change.")
+							: __("Read-only is off for this chat."),
+						indicator: next ? "blue" : "gray",
+					},
+					4
+				);
+			};
+			if (!this.conversation) return done();
+			call("set_read_only", { name: this.conversation, read_only: next ? 1 : 0 }).then(done);
+		}
+
 		new_chat() {
 			if (this.run) this.detach_run();
 			this.conversation = null;
+			this.set_read_only(false);
 			this.pending_files = [];
 			this.show_welcome();
 			this.render_tray();
@@ -1124,6 +1225,7 @@
 			return call("get_conversation", { name }, { type: "GET" })
 				.then((data) => {
 					this.conversation = data.name;
+					this.set_read_only(data.read_only);
 					store.set("last_conversation", data.name);
 					const thread = this.$(".omni-thread");
 					thread.replaceChildren();
@@ -1171,6 +1273,7 @@
 			const run_id = hex(8);
 			const args = { message: text, run_id };
 			if (this.conversation) args.conversation = this.conversation;
+			else if (this.read_only) args.read_only = 1;
 			if (files.length) args.attachments = JSON.stringify(files.map((f) => f.file));
 			if (this.mode === "panel" && this.use_context && this.context) args.page_context = JSON.stringify(this.context);
 
@@ -1493,6 +1596,16 @@
 			});
 			if (frappe.router && frappe.router.on) frappe.router.on("change", () => this.sync_route());
 			$(document).on("form-refresh page-change", () => this.chat && this.chat.refresh_context());
+			if (frappe.boot.omni_ai.features && frappe.boot.omni_ai.features.writing) {
+				$(document).on("form-refresh", (e, frm) => {
+					try {
+						// fields settle their read/write state just after refresh
+						setTimeout(() => writing.decorate(frm), 60);
+					} catch (err) {
+						/* never break a form over a helper button */
+					}
+				});
+			}
 			// every saved document gets an "Ask <assistant> about this" entry in its menu
 			$(document).on("form-refresh", (e, frm) => {
 				try {
@@ -1527,6 +1640,135 @@
 			return this.page_chat;
 		},
 	};
+
+	// ------------------------------------------------------------------ writing help on form fields
+
+	const WRITE_ACTIONS = [
+		["fix", "Fix spelling and grammar"],
+		["improve", "Improve the writing"],
+		["formal", "Make it formal"],
+		["shorter", "Make it shorter"],
+		["to_arabic", "Translate to Arabic"],
+		["to_english", "Translate to English"],
+	];
+	const WRITE_TYPES = new Set(["Small Text", "Text", "Long Text", "Text Editor"]);
+
+	const writing = {
+		html_to_text(html) {
+			const doc = new DOMParser().parseFromString(String(html || ""), "text/html");
+			doc.querySelectorAll("p,div,li,br,h1,h2,h3,h4,tr").forEach((n) => n.appendChild(doc.createTextNode("\n")));
+			return (doc.body.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+		},
+
+		decorate(frm) {
+			if (!frm || !frm.fields || !frm.doc) return;
+			frm.fields.forEach((field) => {
+				const df = field.df || {};
+				if (!WRITE_TYPES.has(df.fieldtype) || !field.$wrapper || !field.$wrapper.length) return;
+				const wrapper = field.$wrapper.get(0);
+				let btn = wrapper.querySelector(".omni-write-btn");
+				const editable = field.disp_status === "Write" && !df.read_only;
+				if (!editable) {
+					if (btn) btn.remove();
+					return;
+				}
+				if (btn) return;
+				const label = wrapper.querySelector(".control-label") || wrapper.querySelector("label");
+				if (!label || !label.parentNode) return;
+				btn = el(`<button type="button" class="omni-write-btn" title="${esc(__("Writing help"))}" aria-label="${esc(__("Writing help"))}">${ICONS.spark}</button>`);
+				label.parentNode.insertBefore(btn, label.nextSibling);
+				btn.addEventListener("click", (e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					this.menu(btn, frm, df);
+				});
+			});
+		},
+
+		menu(anchor, frm, df) {
+			document.querySelectorAll(".omni-write-menu").forEach((n) => n.remove());
+			const menu = el(`<div class="omni-write-menu" role="menu"></div>`);
+			WRITE_ACTIONS.forEach(([action, label]) => {
+				const item = el(`<button type="button" role="menuitem">${esc(__(label))}</button>`);
+				item.addEventListener("click", () => {
+					menu.remove();
+					this.run(frm, df, action, __(label));
+				});
+				menu.appendChild(item);
+			});
+			document.body.appendChild(menu);
+			const box = anchor.getBoundingClientRect();
+			menu.style.top = `${window.scrollY + box.bottom + 4}px`;
+			const left = Math.min(window.scrollX + box.left, window.scrollX + window.innerWidth - menu.offsetWidth - 12);
+			menu.style.left = `${Math.max(8, left)}px`;
+			const close = (e) => {
+				if (e.type === "keydown" && e.key !== "Escape") return;
+				if (e.type === "mousedown" && menu.contains(e.target)) return;
+				menu.remove();
+				document.removeEventListener("mousedown", close, true);
+				document.removeEventListener("keydown", close, true);
+			};
+			setTimeout(() => {
+				document.addEventListener("mousedown", close, true);
+				document.addEventListener("keydown", close, true);
+			}, 0);
+		},
+
+		run(frm, df, action, label) {
+			const is_html = df.fieldtype === "Text Editor";
+			const original = frm.doc[df.fieldname] || "";
+			const plain = is_html ? this.html_to_text(original) : original;
+			if (!plain.trim()) {
+				frappe.show_alert({ message: __("Write something in this field first."), indicator: "orange" });
+				return;
+			}
+			frappe.call({
+				method: "omni_ai.api.writing.transform",
+				args: { text: original, action, is_html: is_html ? 1 : 0 },
+				freeze: true,
+				freeze_message: __("Working…"),
+				callback: (r) => {
+					const out = r.message;
+					if (!out || !out.result) return;
+					const dialog = new frappe.ui.Dialog({
+						title: `${label}: ${__(df.label || df.fieldname)}`,
+						size: "large",
+						fields: [{ fieldtype: "HTML", fieldname: "preview" }],
+						primary_action_label: __("Use this text"),
+						primary_action: () => {
+							const box = dialog.$wrapper.get(0).querySelector(".omni-write-result");
+							const value = is_html ? out.result : box.value;
+							frm.set_value(df.fieldname, value);
+							dialog.hide();
+							frappe.show_alert({ message: __("Applied. Save the document to keep it."), indicator: "green" }, 4);
+						},
+						secondary_action_label: __("Keep the original"),
+						secondary_action: () => dialog.hide(),
+					});
+					dialog.onhide = () => setTimeout(() => dialog.$wrapper.remove(), 300); // do not pile up hidden dialogs
+					const host = dialog.fields_dict.preview.$wrapper.get(0);
+					host.replaceChildren(
+						el(`<div class="omni-write-preview">
+							${(out.warnings || []).map((w) => `<div class="omni-write-warn">${ICONS.warn}<span>${esc(w)}</span></div>`).join("")}
+							<div class="omni-write-cols">
+								<div><div class="omni-write-head">${esc(__("Original"))}</div><div class="omni-write-old" dir="auto"></div></div>
+								<div><div class="omni-write-head">${esc(__("Suggestion"))}</div>${
+									is_html ? `<div class="omni-write-new omni-write-result" dir="auto"></div>` : `<textarea class="omni-write-new omni-write-result" dir="auto"></textarea>`
+								}</div>
+							</div>
+							<div class="omni-write-note">${esc(is_html ? __("Formatting is kept when you apply. Nothing changes until you press Use this text and save.") : __("You can edit the suggestion. Nothing changes until you press Use this text and save."))}</div>
+						</div>`)
+					);
+					host.querySelector(".omni-write-old").textContent = plain;
+					const box = host.querySelector(".omni-write-result");
+					if (is_html) box.textContent = this.html_to_text(out.result);
+					else box.value = out.result;
+					dialog.show();
+				},
+			});
+		},
+	};
+	omni_ai.writing = writing;
 
 	window.omni_ai = omni_ai;
 	$(document).on("startup", () => omni_ai.boot());

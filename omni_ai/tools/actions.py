@@ -11,7 +11,7 @@ from frappe.utils import now_datetime
 
 from omni_ai.tools.base import Tool, ToolError, clean_value
 from omni_ai.tools.data import get_meta_or_error
-from omni_ai.utils import clip, dumps, frappe_major, loads
+from omni_ai.utils import clip, doctype_set, dumps, frappe_major, loads
 
 ACTION_TYPES = {
 	"create": "Create Document",
@@ -58,6 +58,11 @@ def _check_writable(meta):
 		raise ToolError(
 			f"{meta.name} is a system or configuration DocType. The assistant only changes business records; "
 			"tell the user to make this change in the desk.",
+			denied=True,
+		)
+	if meta.name in doctype_set("protected_doctypes"):
+		raise ToolError(
+			f"An administrator has set {meta.name} as a DocType the assistant never changes. Tell the user to make this change in the desk.",
 			denied=True,
 		)
 	if meta.istable:
@@ -207,6 +212,11 @@ def execute_action(action_name: str, user: str) -> dict:
 		result = create_schedule(payload, user)
 		result["route"] = doc_route(result["doctype"], result["name"])
 		message = result.pop("message")
+	elif action.action_type == "Send Email":
+		from omni_ai.tools.email import send_email
+
+		result = send_email(payload, user)
+		message = result.pop("message")
 	elif action.action_type == "Run Automation":
 		from omni_ai.tools.automation import run_automation
 
@@ -281,6 +291,6 @@ TOOLS = [
 		},
 		propose_document_action,
 		label="Preparing change",
-		enabled=lambda ctx: bool(ctx.settings.enable_write_actions) and not ctx.unattended,
+		enabled=lambda ctx: bool(ctx.settings.enable_write_actions) and (not ctx.unattended or ctx.proposals),
 	)
 ]

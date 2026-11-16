@@ -45,6 +45,23 @@ def is_configured() -> bool:
 	return bool(get_api_key())
 
 
+def agg(function: str, field: str, alias: str):
+	"""An aggregate for the `fields` of get_list / get_all that works on v15 (string) and v16 (dict)."""
+	if frappe_major() >= 16:
+		return {function.upper(): field, "as": alias}
+	return f"{function.lower()}({field}) as {alias}"
+
+
+def doctype_set(fieldname: str) -> set:
+	"""DocType names listed in one of the settings' DocType tables."""
+	return {row.document_type for row in (get_settings().get(fieldname) or []) if row.document_type}
+
+
+def provider_is_external() -> bool:
+	"""Does the configured AI provider run outside the organisation's own country or servers?"""
+	return (get_settings().get("data_location") or "Outside").startswith("Outside")
+
+
 def setting_roles(fieldname: str, default=ADMIN_ROLES) -> set:
 	rows = get_settings().get(fieldname) or []
 	roles = {row.role for row in rows if row.role}

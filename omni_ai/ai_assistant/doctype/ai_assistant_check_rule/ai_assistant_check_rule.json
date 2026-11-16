@@ -1,0 +1,236 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-16 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "enabled",
+  "document_type",
+  "rule_type",
+  "col_1",
+  "action",
+  "run_on",
+  "override_roles",
+  "sec_params",
+  "fields",
+  "ignore_case_and_spacing",
+  "field",
+  "operator",
+  "value",
+  "days_back",
+  "allow_future",
+  "col_2",
+  "table_field",
+  "reference",
+  "direction",
+  "tolerance_percent",
+  "group_field",
+  "factor",
+  "sec_message",
+  "message"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Rule",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "What the rule checks, in a few words."
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Link",
+   "label": "DocType",
+   "options": "DocType",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "rule_type",
+   "fieldtype": "Select",
+   "label": "Check",
+   "options": "Duplicate\nRequired\nCondition\nDate Window\nPrice Deviation\nUnusual Amount",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "col_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Select",
+   "label": "When It Fails",
+   "options": "Warn\nBlock",
+   "default": "Warn",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Warn shows a message and lets the user continue. Block stops the save."
+  },
+  {
+   "fieldname": "run_on",
+   "fieldtype": "Select",
+   "label": "Run On",
+   "options": "Save\nSubmit",
+   "default": "Save",
+   "reqd": 1,
+   "description": "Save checks every save, including drafts. Submit checks only when the document is submitted."
+  },
+  {
+   "fieldname": "override_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Roles That May Continue Anyway",
+   "options": "AI Assistant Role",
+   "description": "For these roles a Block rule only warns."
+  },
+  {
+   "fieldname": "sec_params",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "fields",
+   "fieldtype": "Small Text",
+   "label": "Fields",
+   "depends_on": "eval:['Duplicate','Required'].includes(doc.rule_type)",
+   "description": "Field names separated by commas. Duplicate: another document with the same values in all of them fails. Required: each must be filled. Use table.field for a field in a child table."
+  },
+  {
+   "fieldname": "ignore_case_and_spacing",
+   "fieldtype": "Check",
+   "label": "Ignore Capitals, Spaces and Punctuation",
+   "depends_on": "eval:doc.rule_type=='Duplicate'",
+   "description": "'Al-Noor Trading' and 'alnoor trading' count as the same."
+  },
+  {
+   "fieldname": "field",
+   "fieldtype": "Data",
+   "label": "Field",
+   "depends_on": "eval:['Condition','Date Window','Unusual Amount'].includes(doc.rule_type)",
+   "description": "Field name. Use table.field for a field in a child table (Condition only)."
+  },
+  {
+   "fieldname": "operator",
+   "fieldtype": "Select",
+   "label": "Must Be",
+   "options": "\n=\n!=\n>\n>=\n<\n<=\nin\nnot in",
+   "depends_on": "eval:doc.rule_type=='Condition'"
+  },
+  {
+   "fieldname": "value",
+   "fieldtype": "Data",
+   "label": "Value",
+   "depends_on": "eval:doc.rule_type=='Condition'",
+   "description": "A number or text; for in / not in, values separated by commas. Write field:other_field to compare with another field of the document."
+  },
+  {
+   "fieldname": "days_back",
+   "fieldtype": "Int",
+   "label": "Not Older Than (Days)",
+   "depends_on": "eval:doc.rule_type=='Date Window'",
+   "description": "0 means any past date is accepted."
+  },
+  {
+   "fieldname": "allow_future",
+   "fieldtype": "Check",
+   "label": "Future Dates Allowed",
+   "depends_on": "eval:doc.rule_type=='Date Window'"
+  },
+  {
+   "fieldname": "col_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "table_field",
+   "fieldtype": "Data",
+   "label": "Items Table",
+   "default": "items",
+   "depends_on": "eval:doc.rule_type=='Price Deviation'"
+  },
+  {
+   "fieldname": "reference",
+   "fieldtype": "Select",
+   "label": "Compare Rate With",
+   "options": "Last Purchase Rate\nValuation Rate\nPrice List Rate",
+   "default": "Last Purchase Rate",
+   "depends_on": "eval:doc.rule_type=='Price Deviation'"
+  },
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "label": "Fails When Rate Is",
+   "options": "Above or below\nAbove only\nBelow only",
+   "default": "Above or below",
+   "depends_on": "eval:doc.rule_type=='Price Deviation'"
+  },
+  {
+   "fieldname": "tolerance_percent",
+   "fieldtype": "Float",
+   "label": "Tolerance (%)",
+   "depends_on": "eval:doc.rule_type=='Price Deviation'"
+  },
+  {
+   "fieldname": "group_field",
+   "fieldtype": "Data",
+   "label": "Compare Within",
+   "depends_on": "eval:doc.rule_type=='Unusual Amount'",
+   "description": "For example customer or supplier: the amount is compared with that party's earlier documents. Empty compares with all documents."
+  },
+  {
+   "fieldname": "factor",
+   "fieldtype": "Float",
+   "label": "Fails Above (Times the Usual Amount)",
+   "default": "5",
+   "depends_on": "eval:doc.rule_type=='Unusual Amount'"
+  },
+  {
+   "fieldname": "sec_message",
+   "fieldtype": "Section Break",
+   "label": "Message"
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Small Text",
+   "label": "Message to the User",
+   "description": "Optional. Shown instead of the standard message."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-16 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "AI Assistant",
+ "name": "AI Assistant Check Rule",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "share": 1,
+   "export": 1,
+   "report": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 0
+}

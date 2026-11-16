@@ -180,6 +180,11 @@ def run_report(args, ctx):
 		raise ToolError("filters must be an object of fieldname: value.")
 	from frappe.desk.query_report import run
 
+	from omni_ai.tools.data import WITHHELD_MESSAGE, withheld
+
+	if report.ref_doctype and withheld(report.ref_doctype):
+		raise ToolError(WITHHELD_MESSAGE.format(report.ref_doctype), denied=True)
+
 	try:
 		result = run(report.name, filters=frappe._dict(filters), ignore_prepared_report=True, are_default_filters=False)
 	except frappe.PermissionError as exc:

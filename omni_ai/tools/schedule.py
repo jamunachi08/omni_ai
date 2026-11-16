@@ -26,6 +26,7 @@ def _clean(args) -> dict:
 		"weekday": weekday,
 		"day_of_month": min(max(to_int(args.get("day_of_month"), 1) or 1, 1), 28),
 		"hour": min(max(to_int(args.get("hour"), 8), 0), 23),
+		"only_when_needed": 1 if args.get("only_when_needed") else 0,
 	}
 
 
@@ -54,7 +55,8 @@ def propose_schedule(args, ctx):
 			"action_type": "Create Schedule",
 			"status": "Pending",
 			"title": values["title"],
-			"subtitle": f"{when_text(values)} (site time), emailed to {email}",
+			"subtitle": f"{when_text(values)} (site time), emailed to {email}"
+			+ (" only when there is something to report" if values["only_when_needed"] else ""),
 			"details": [{"label": "Each time I will", "value": values["prompt"]}],
 		}
 	)
@@ -69,7 +71,7 @@ def propose_schedule(args, ctx):
 
 def create_schedule(payload: dict, user: str) -> dict:
 	"""Runs when the user confirms the card, as that user (the controller enforces the limits)."""
-	doc = frappe.get_doc({"doctype": DOCTYPE, **{k: payload.get(k) for k in ("title", "prompt", "frequency", "weekday", "day_of_month", "hour")}})
+	doc = frappe.get_doc({"doctype": DOCTYPE, **{k: payload.get(k) for k in ("title", "prompt", "frequency", "weekday", "day_of_month", "hour", "only_when_needed")}})
 	doc.user = user
 	doc.enabled = 1
 	doc.insert()
@@ -88,6 +90,9 @@ TOOLS = [
 		"automatically". The prompt is what you will be asked each time, with no memory of this
 		conversation, so write it as a complete instruction including the period in relative terms
 		("last week", "month to date"), the company or filters, and the format wanted (table, chart).
+		For an alert ("tell me when stock of X falls below 50", "warn me about invoices overdue more than 60
+		days") set only_when_needed: the check then runs on the schedule but the user is only notified when
+		there is something to report; state the condition clearly in the prompt.
 		The user confirms on a card. Times are in the site's time zone.""",
 		{
 			"type": "object",
@@ -98,6 +103,7 @@ TOOLS = [
 				"weekday": {"type": "string", "enum": WEEKDAYS, "description": "For Weekly."},
 				"day_of_month": {"type": "integer", "description": "For Monthly, 1 to 28."},
 				"hour": {"type": "integer", "description": "0 to 23, site time. Default 8."},
+				"only_when_needed": {"type": "boolean", "description": "Alert mode: notify only when there is something to report."},
 			},
 			"required": ["prompt", "frequency"],
 		},

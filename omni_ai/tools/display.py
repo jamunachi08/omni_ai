@@ -168,7 +168,70 @@ DATA_PROPS = {
 	"rows": {"type": "array", "items": {"type": "array"}, "description": "Only without result_id: rows as lists (max a few hundred)."},
 }
 
+def show_kpis(args, ctx):
+	items = args.get("items")
+	if not isinstance(items, list) or not 1 <= len(items) <= 6:
+		raise ToolError("items must be a list of 1 to 6 tiles.")
+	tiles = []
+	for item in items:
+		if not isinstance(item, dict) or not str(item.get("label") or "").strip() or item.get("value") in (None, ""):
+			raise ToolError("Every tile needs a label and a value.")
+		trend = str(item.get("trend") or "").lower()
+		tiles.append(
+			{
+				"label": clip(str(item["label"]), 60),
+				"value": clip(str(item["value"]), 40),
+				"note": clip(str(item.get("note") or ""), 80),
+				"trend": trend if trend in ("up", "down", "flat") else "",
+				"good": bool(item.get("good")) if item.get("good") is not None else None,
+			}
+		)
+	if ctx.settings.verify_figures:
+		# a headline number must come from a query result of this reply, like any figure in the answer
+		from omni_ai.engine.grounding import collect_sources, untraced
+
+		missing = untraced(" ; ".join(t["value"] for t in tiles), collect_sources([], ctx.results))
+		if missing:
+			raise ToolError(
+				f"These tile values do not appear in a query result of this reply: {', '.join(missing)}. "
+				"Compute each one with a query (an aggregate in query_data or run_sql) and use that value."
+			)
+	ctx.add_part({"type": "kpis", "title": clip(args.get("title") or "", 140), "items": tiles})
+	return {"status": "displayed", "note": "The tiles are now shown to the user. Do not repeat the numbers in a list; add the insight in a sentence or two."}
+
+
 TOOLS = [
+	Tool(
+		"show_kpis",
+		"""Show up to six headline numbers as tiles (for example Revenue, Orders, Overdue amount) at the top
+		of an answer. Use it for summaries and overviews where a few figures matter most. Every value must be
+		a figure you obtained from a query in this reply, formatted as the user should read it (with currency
+		or unit). Optional: note (a short comparison such as "vs 1.2M last month"), trend (up, down, flat) and
+		good (true when the trend is good news, false when it is bad).""",
+		{
+			"type": "object",
+			"properties": {
+				"title": {"type": "string"},
+				"items": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"label": {"type": "string"},
+							"value": {"type": "string"},
+							"note": {"type": "string"},
+							"trend": {"type": "string", "enum": ["up", "down", "flat"]},
+							"good": {"type": "boolean"},
+						},
+						"required": ["label", "value"],
+					},
+				},
+			},
+			"required": ["items"],
+		},
+		show_kpis,
+		label="Showing key figures",
+	),
 	Tool(
 		"show_table",
 		"""Display a result to the user as a sortable, searchable table with a download button. Use it whenever

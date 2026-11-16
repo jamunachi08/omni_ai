@@ -39,6 +39,26 @@ not an independent audit.
 - **Memory.** A note is context for later answers. Review company notes before approving them.
 - **Automations** send the confirmed parameters to the URL an administrator registered. Protect the
   webhook with the secret header and use HTTPS.
+- **Entry checks are not a security boundary.** They catch mistakes. A user allowed to change a
+  rule, or holding a role that may continue anyway, can pass them; rules do not apply to changes
+  made directly in the database. Keep rule editing with System Managers.
+- **Scheduled preparation.** A task marked for it can prepare documents and emails unattended. The
+  data it reads can contain text that tries to steer it; whatever it prepares waits for a person,
+  who sees the full content before approving. Approve items as carefully as you would a
+  colleague's draft, and switch the feature off if nobody will review the inbox.
+- **Control Room counts** are made with the viewer's permissions, except the reorder-level count,
+  which is site-wide.
+- **Email.** The assistant can address an email to anyone the user or a record names. A
+  manipulated assistant could draft a message carrying data to an outside address; the card shows
+  every recipient and the full text, and nothing is sent without the user's click. Switch email
+  drafting off if that review cannot be relied on.
+- **Team chat posts** go to an incoming webhook of Slack, Teams or Google Chat only (or hosts the
+  server administrator lists in site_config). The schedule's owner chooses the channel; whoever is
+  in it sees the summary.
+- **Masking is partial by design** (formats with check digits or clear shapes). Treat it as
+  reducing exposure, not as a guarantee, and use Sensitive DocTypes for data that must not leave.
+- **Knowledge documents** are sent to the provider when relevant, and their text can contain
+  instructions aimed at the assistant. Add documents from sources you trust.
 - **Other providers.** With an OpenAI-compatible provider or an embeddings service, the same data
   goes to that service instead; a plain-`http` base URL is only appropriate for a server on the
   same machine or private network. The provider and embeddings keys are stored encrypted.

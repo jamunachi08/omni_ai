@@ -1,9 +1,9 @@
 from omni_ai import __version__
 
 app_name = "omni_ai"
-app_title = "AI Assistant"
-app_publisher = "AI Assistant"
-app_description = "A white-label AI assistant inside ERPNext and Frappe"
+app_title = "Neotec AI"
+app_publisher = "Neotec"
+app_description = "Neotec AI: assistant, entry checks and process automation for ERPNext and Frappe"
 app_email = "support@example.com"
 app_license = "mit"
 
@@ -30,7 +30,7 @@ add_to_apps_screen = [
 	{
 		"name": "omni_ai",
 		"logo": "/assets/omni_ai/images/assistant.svg",
-		"title": "AI Assistant",
+		"title": "Neotec AI",
 		"route": DESK_ROUTE,
 		"has_permission": "omni_ai.utils.has_app_permission",
 	}
@@ -38,5 +38,13 @@ add_to_apps_screen = [
 
 scheduler_events = {
 	"daily": ["omni_ai.tasks.daily_cleanup"],
-	"hourly": ["omni_ai.engine.schedule.run_due"],
+	"hourly": ["omni_ai.engine.schedule.run_due", "omni_ai.checks.engine.flush_log"],
+}
+
+# entry checks run on every DocType; a DocType without rules costs one cached lookup
+doc_events = {
+	"*": {
+		"validate": "omni_ai.checks.engine.on_validate",
+		"before_submit": "omni_ai.checks.engine.on_before_submit",
+	}
 }

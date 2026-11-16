@@ -22,13 +22,20 @@ STEP_LIMIT_NOTE = (
 )
 
 
-def make_client(timeout: int | None = None):
-	"""The client for the provider chosen in settings. Both clients take and return the same message format."""
+def make_client(timeout: int | None = None, vault=None):
+	"""The client for the provider chosen in settings. Both clients take and return the same message format.
+	With personal-data masking on, the client is wrapped so nothing is sent unmasked."""
 	settings = get_settings()
 	timeout = timeout or to_int(settings.request_timeout, 600) or 600
 	if settings.provider == "OpenAI-compatible":
-		return OpenAICompatClient(get_api_key(), settings.base_url, timeout)
-	return ClaudeClient(get_api_key(), settings.base_url, timeout)
+		client = OpenAICompatClient(get_api_key(), settings.base_url, timeout)
+	else:
+		client = ClaudeClient(get_api_key(), settings.base_url, timeout)
+	if settings.get("mask_personal_data"):
+		from omni_ai.engine.shield import ShieldedClient
+
+		client = ShieldedClient(client, vault)
+	return client
 
 
 # -- history -------------------------------------------------------------------------
@@ -102,6 +109,14 @@ def _user_content(row, user: str, with_files: bool) -> list:
 	if notes:
 		text = "".join(f"<system_note>{n}</system_note>\n" for n in notes) + text
 	context = loads(row.page_context, None)
+	if context and context.get("doctype"):
+		from omni_ai.tools.data import withheld
+
+		try:
+			if withheld(context["doctype"]):
+				context = None  # the user is looking at a sensitive record: do not even pass its name on
+		except Exception:
+			context = None
 	if context:
 		text = f"<page_context>{dumps(context)}</page_context>\n{text}"
 	memory = loads(row.memory, [])
@@ -174,8 +189,9 @@ def build_messages(conversation: str, user: str, settings) -> list:
 
 
 class Run:
-	def __init__(self, run_id: str, conversation: str, user: str, unattended: bool = False):
+	def __init__(self, run_id: str, conversation: str, user: str, unattended: bool = False, proposals: bool = False):
 		self.unattended = unattended
+		self.proposals = proposals
 		self.figures_checked = False
 		self.run_id = run_id
 		self.conversation = conversation
@@ -277,12 +293,24 @@ class Run:
 
 	def execute(self):
 		self.ctx = ToolContext(
-			self.user, self.conversation, stream=self.stream, parts=self.parts, unattended=self.unattended
+			self.user,
+			self.conversation,
+			stream=self.stream,
+			parts=self.parts,
+			unattended=self.unattended,
+			proposals=self.proposals,
+			read_only=bool(frappe.db.get_value("AI Assistant Conversation", self.conversation, "read_only")),
 		)
 		self.tools = available_tools(self.ctx)
 		guard.check_open("provider")
 		client = make_client()
 		system = build_system_prompt(self.user, set(self.tools))
+		if self.ctx.read_only:
+			system += (
+				"\n\nThis conversation is read-only. You can look things up, analyse and explain, but you cannot propose "
+				"changes, reports to save, notes, schedules, emails or automations here. If the user asks for one, say that "
+				"this conversation is read-only and that they can switch it off in the conversation menu."
+			)
 		history = build_messages(self.conversation, self.user, self.settings)
 		if not history:
 			raise ProviderError("There is no message to answer.")

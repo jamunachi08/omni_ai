@@ -33,6 +33,19 @@ class AIAssistantSchedule(Document):
 			frappe.throw(_("You can only send scheduled results to your own address ({0}).").format(own_email))
 		self.recipients = "\n".join(dict.fromkeys(wanted[:20]))
 
+		self.chat_webhook = (self.chat_webhook or "").strip()
+		if not self.chat_channel:
+			self.chat_webhook = ""
+		elif self.chat_webhook:
+			from omni_ai.engine.delivery import check_webhook
+
+			try:
+				self.chat_webhook = check_webhook(self.chat_channel, self.chat_webhook)
+			except ValueError as exc:
+				frappe.throw(_(str(exc)))
+		else:
+			frappe.throw(_("Enter the incoming webhook address of the channel, or clear 'Also Post To'."))
+
 		limit = to_int(settings.max_schedules_per_user, 5) or 5
 		others = frappe.db.count("AI Assistant Schedule", {"user": self.user, "name": ("!=", self.name or "")})
 		if self.is_new() and others >= limit and not has_any_role(ADMIN_ROLES):

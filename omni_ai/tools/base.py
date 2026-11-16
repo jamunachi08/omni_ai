@@ -6,7 +6,7 @@ import time
 
 import frappe
 
-from omni_ai.utils import dumps, get_settings, to_int
+from omni_ai.utils import doctype_set, dumps, get_settings, provider_is_external, to_int
 
 RESULT_TTL = 60 * 60 * 6
 MODEL_PREVIEW_ROWS = 30
@@ -38,8 +38,14 @@ class Tool:
 class ToolContext:
 	"""Everything a tool needs. One instance per assistant reply."""
 
-	def __init__(self, user, conversation, stream=None, parts=None, unattended=False):
+	def __init__(self, user, conversation, stream=None, parts=None, unattended=False, external=None, read_only=False, proposals=False):
 		self.unattended = unattended  # scheduled run: nobody is there to confirm cards
+		# an unattended run that may still prepare documents and emails; they wait in the Control Room for approval
+		self.proposals = bool(proposals)
+		self.read_only = read_only  # the user asked for a conversation in which nothing can be proposed
+		# sensitive DocTypes are withheld whenever what the tools return goes to a model outside the organisation
+		self.external = provider_is_external() if external is None else bool(external)
+		frappe.local.omni_ai_withheld = doctype_set("sensitive_doctypes") if self.external else set()
 		self.results = []  # full result sets produced in this reply (used to check quoted figures)
 		self.data_tools_used = 0
 		self.user = user

@@ -10,6 +10,7 @@ from omni_ai.utils import clip, frappe_major, get_settings, has_access, is_confi
 DOCTYPE = "AI Assistant Schedule"
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 MAX_EMAIL_TABLE_ROWS = 60
+NOTHING = "NOTHING_TO_REPORT"  # what an alert task answers when there is nothing worth sending
 
 
 def next_run_after(doc, after=None) -> datetime.datetime:
@@ -64,8 +65,20 @@ def run_schedule(name: str, manual: bool = False):
 		conversation, reply = _run_prompt(doc, user)
 		if reply.status == "Error":
 			raise frappe.ValidationError(reply.error or "The assistant could not complete the task.")
-		_send_email(doc, user, conversation, reply)
-		status = "Sent"
+		if doc.get("only_when_needed") and NOTHING in reply.text():
+			status = "Nothing to report"
+		else:
+			_send_email(doc, user, conversation, reply)
+			status = "Sent"
+			if doc.get("chat_channel") and (doc.get("chat_webhook") or "").strip():
+				try:
+					from omni_ai.engine import delivery
+
+					base = "/desk" if frappe_major() >= 16 else "/app"
+					delivery.post(doc.chat_channel, doc.chat_webhook, doc.title, reply.text(), get_url(f"{base}/ai-assistant/{conversation}"))
+					status = f"Sent, and posted to {doc.chat_channel}"
+				except Exception as exc:
+					status = clip(f"Sent by email; {doc.chat_channel} post failed: {exc}", 130)
 	except Exception as exc:
 		frappe.db.rollback()
 		status = clip(f"Failed: {exc}", 130)
@@ -86,6 +99,7 @@ def _run_prompt(doc, user: str):
 	from omni_ai.engine import stream as bus
 	from omni_ai.engine.agent import Run
 
+	may_propose = bool(doc.get("allow_proposals")) and bool(get_settings().get("enable_proposals"))
 	conv = frappe.get_doc({"doctype": "AI Assistant Conversation", "title": doc.title, "user": user, "schedule": doc.name})
 	conv.flags.ignore_permissions = True
 	conv.insert(ignore_permissions=True)
@@ -103,6 +117,25 @@ def _run_prompt(doc, user: str):
 					"Do the work now and give a complete, self-contained result suitable for an email. Tables shown with "
 					"show_table and files made with export_data are included in the email; charts are not, so describe trends in words."
 				]
+				+ (
+					[
+						"You may prepare documents (propose_document_action) and emails (draft_email) in this run. Nothing "
+						"is created or sent now: each one waits in the Control Room until the user approves it. Prepare only "
+						"what the instruction asks for, at most 20 items, and end your result with a short list of what is "
+						"waiting for approval and why."
+					]
+					if may_propose
+					else []
+				)
+				+ (
+					[
+						"This task is an alert. Check the data first. If nothing needs the reader's attention (the condition "
+						f"in the instruction is not met, or there are no matching records), reply with exactly {NOTHING} and "
+						"nothing else; nobody is notified then. Otherwise report what needs attention, most important first."
+					]
+					if doc.get("only_when_needed")
+					else []
+				)
 			),
 		}
 	)
@@ -113,7 +146,7 @@ def _run_prompt(doc, user: str):
 
 	run_id = frappe.generate_hash(length=16)
 	bus.set_state(run_id, status="running", conversation=conv.name)
-	job = Run(run_id, conv.name, user, unattended=True)
+	job = Run(run_id, conv.name, user, unattended=True, proposals=may_propose)
 	try:
 		job.execute()
 	except Exception as exc:
@@ -157,13 +190,24 @@ def _table_html(part: dict) -> str:
 def _send_email(doc, user: str, conversation: str, reply):
 	settings = get_settings()
 	brand = settings.brand_name or "Assistant"
-	sections, attachments = [], []
+	sections, attachments, waiting = [], [], []
 	for part in reply.parts:
 		kind = part.get("type")
 		if kind == "text" and (part.get("text") or "").strip():
 			sections.append(frappe.utils.md_to_html(part["text"]))
 		elif kind == "table":
 			sections.append(_table_html(part))
+		elif kind == "kpis":
+			cells = "".join(
+				'<td style="padding:10px 18px 10px 0;vertical-align:top"><div style="color:#6b7280;font-size:12px">'
+				f'{frappe.utils.escape_html(t.get("label") or "")}</div><div style="font-size:20px;font-weight:600">'
+				f'{frappe.utils.escape_html(t.get("value") or "")}</div><div style="color:#6b7280;font-size:12px">'
+				f'{frappe.utils.escape_html(t.get("note") or "")}</div></td>'
+				for t in part.get("items") or []
+			)
+			sections.append(f'<table style="border-collapse:collapse;margin:6px 0 12px"><tr>{cells}</tr></table>')
+		elif kind == "action" and part.get("status") == "Pending":
+			waiting.append(frappe.utils.escape_html(part.get("title") or ""))
 		elif kind == "chart":
 			sections.append(
 				f'<p style="color:#6b7280;font-size:12px">Chart: {frappe.utils.escape_html(part.get("title") or "")} (open the conversation to view it)</p>'
@@ -176,6 +220,14 @@ def _send_email(doc, user: str, conversation: str, reply):
 				pass
 	base = "/desk" if frappe_major() >= 16 else "/app"
 	link = get_url(f"{base}/ai-assistant/{conversation}")
+	if waiting:
+		room = get_url(f"{base}/control-room")
+		sections.append(
+			f'<p style="margin-top:16px;padding:10px 14px;border:1px solid #fcd34d;border-radius:8px;background:#fffbeb">'
+			f"<b>{len(waiting)} prepared for your approval</b> (nothing has been created or sent):<br>"
+			+ "<br>".join(waiting[:20])
+			+ f'<br><a href="{room}">Review and approve in the Control Room</a></p>'
+		)
 	html = (
 		'<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:14px;line-height:1.55;color:#1f2937">'
 		+ "".join(sections)

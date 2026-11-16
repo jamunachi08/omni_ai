@@ -379,3 +379,185 @@ class TestGuard(TestCase):
 		self.assertAlmostEqual(_cosine([1, 0], [0, 1]), 0.0)
 		self.assertEqual(_cosine([1, 0], [1, 0, 0]), -1.0)  # vectors from different models are never compared
 		self.assertEqual(_cosine([], [1]), -1.0)
+
+
+class TestShield(TestCase):
+	def test_mask_and_unmask(self):
+		from omni_ai.engine import shield
+
+		valid_id = next(str(n) for n in range(1012345670, 1012345690) if shield._luhn(str(n)))
+		text = f"Write to sara@example.com or 0501234567, IBAN SA0380000000608010167519, card 4111111111111111, ID {valid_id}. Total 1,250,000.00."
+		vault = shield.Vault()
+		masked = shield.mask(text, vault)
+		for secret in ("sara@example.com", "0501234567", "SA0380000000608010167519", "4111111111111111", valid_id):
+			self.assertNotIn(secret, masked)
+		self.assertIn("1,250,000.00", masked)  # amounts are never touched
+		self.assertEqual(shield.unmask(masked, vault), text)
+		self.assertEqual(shield.mask(text, vault), masked)  # stable placeholders within one reply
+		# numbers that only look like personal data stay as they are
+		plain = f"Order {int(valid_id) + 1}, ref SA0380000000608010167510, code 1234567890123456"
+		self.assertEqual(shield.mask(plain, shield.Vault()), plain)
+
+	def test_streamed_placeholders(self):
+		from omni_ai.engine import shield
+
+		vault = shield.Vault()
+		shield.mask("a@b.co", vault)
+		for pieces in (["x [[EMAIL_1]] y"], ["x [", "[EMAIL_1]", "] y"], ["x [[EM", "AIL_", "1]] y"], list("x [[EMAIL_1]] y")):
+			out = []
+			unmasker = shield.StreamUnmasker(vault, out.append)
+			for piece in pieces:
+				unmasker.feed(piece)
+			unmasker.flush()
+			self.assertEqual("".join(out), "x a@b.co y", pieces)
+			self.assertFalse(any("EMAIL_1" in o for o in out))
+		out = []
+		unmasker = shield.StreamUnmasker(vault, out.append)
+		unmasker.feed("see [1] and [[UNKNOWN_9]] and [[")
+		unmasker.flush()
+		self.assertEqual("".join(out), "see [1] and [[UNKNOWN_9]] and [[")  # nothing is ever swallowed
+
+	def test_client_wrapper(self):
+		from omni_ai.engine import shield
+
+		seen = {}
+
+		class Inner:
+			def stream(self, payload, on_text=None, on_block=None, should_stop=None):
+				seen["payload"] = payload
+				on_text("Mail [[EMA")
+				on_text("IL_1]] today")
+				return {"content": [{"type": "text", "text": "Mail [[EMAIL_1]] today"}, {"type": "tool_use", "id": "t", "name": "q", "input": {"to": "[[EMAIL_1]]"}}], "stop_reason": "tool_use"}
+
+		heard = []
+		client = shield.ShieldedClient(Inner())
+		reply = client.stream({"system": "s", "messages": [{"role": "user", "content": "ask omar@example.com"}]}, on_text=heard.append)
+		self.assertNotIn("omar@example.com", frappe.as_json(seen["payload"]))
+		self.assertEqual("".join(heard), "Mail omar@example.com today")
+		self.assertEqual(reply["content"][0]["text"], "Mail omar@example.com today")
+		self.assertEqual(reply["content"][1]["input"], {"to": "omar@example.com"})
+
+
+class TestKnowledgeAndDelivery(TestCase):
+	def test_passages(self):
+		from omni_ai.tools import knowledge
+
+		text = "\n\n".join(f"Section {i}. " + "This sentence fills the section with ordinary words. " * 12 for i in range(1, 9))
+		passages = knowledge.split_passages(text)
+		self.assertGreater(len(passages), 4)
+		self.assertTrue(all(len(p) <= knowledge.PASSAGE_CHARS for p in passages))
+		self.assertTrue(all(f"Section {i}." in " ".join(passages) for i in range(1, 9)))  # nothing is lost
+		self.assertEqual(knowledge.split_passages("  short text  "), ["short text"])
+		self.assertEqual(knowledge.split_passages(""), [])
+		self.assertLessEqual(len(knowledge.split_passages("word " * 200000)), knowledge.MAX_PASSAGES)
+
+	def test_ranking(self):
+		from omni_ai.tools import knowledge
+
+		passages = [
+			("a", "Employees receive 21 days of annual leave each year."),
+			("b", "Travel expenses are reimbursed within 14 days."),
+			("c", "The office is closed on public holidays."),
+			("d", "تُمنح إجازة سنوية مدتها 21 يوماً لكل موظف."),
+		]
+		self.assertEqual(knowledge.rank_by_words("annual leave days", passages)[0][1], "a")
+		self.assertEqual(knowledge.rank_by_words("travel reimbursed", passages)[0][1], "b")
+		self.assertEqual(knowledge.rank_by_words("إجازة سنوية", passages)[0][1], "d")
+		self.assertEqual(knowledge.rank_by_words("zebra", passages), [])
+		self.assertEqual(knowledge.rank_by_words("the and for", passages), [])  # only filler words
+
+	def test_webhook_addresses(self):
+		from omni_ai.engine import delivery
+
+		ok = [
+			("Slack", "https://hooks.slack.com/services/T0/B0/abc"),
+			("Google Chat", "https://chat.googleapis.com/v1/spaces/AAA/messages?key=k&token=t"),
+			("Microsoft Teams", "https://contoso.webhook.office.com/webhookb2/abc"),
+			("Microsoft Teams", "https://prod-12.westeurope.logic.azure.com:443/workflows/abc/triggers/manual/paths/invoke"),
+		]
+		for channel, url in ok:
+			self.assertEqual(delivery.check_webhook(channel, url), url)
+		bad = [
+			("Slack", "http://hooks.slack.com/services/x"),
+			("Slack", "https://hooks.slack.com.attacker.io/x"),
+			("Slack", "https://attacker.io/hooks.slack.com"),
+			("Slack", "https://user@hooks.slack.com@attacker.io/x"),
+			("Slack", "https://169.254.169.254/latest/meta-data"),
+			("Slack", "https://chat.googleapis.com/v1/spaces/x"),
+			("Microsoft Teams", "https://webhook.office.com.attacker.io/x"),
+			("Email", "https://hooks.slack.com/services/x"),
+			("Slack", ""),
+		]
+		for channel, url in bad:
+			with self.assertRaises(ValueError, msg=url):
+				delivery.check_webhook(channel, url)
+		text = delivery.plain_text("## Title\n**Bold** point\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nEnd")
+		self.assertEqual(text, "*Title*\n*Bold* point\n\nEnd")
+		self.assertLessEqual(len(delivery.plain_text("x" * 10000)), delivery.MAX_TEXT)
+
+	def test_writing_number_check(self):
+		from omni_ai.api.writing import changed_numbers, strip_fences
+
+		self.assertEqual(changed_numbers("Pay 1,500 by 30 June", "Please pay 1,500 by 30 June."), [])
+		self.assertEqual(changed_numbers("Pay 1,500 by 30 June", "Please pay 1,800 by 30 June."), ["1500", "1800"])
+		self.assertEqual(changed_numbers("Total 1500", "المجموع ١٥٠٠"), [])
+		self.assertEqual(changed_numbers("<p>Item 5</p>", "<p>Item 5</p><p>and 6</p>"), ["6"])
+		self.assertEqual(strip_fences("```\nhello\n```"), "hello")
+		self.assertEqual(strip_fences("```html\n<p>x</p>\n```"), "<p>x</p>")
+		self.assertEqual(strip_fences("plain"), "plain")
+
+
+class TestChecksAndAnalysis(TestCase):
+	def test_text_comparison(self):
+		from omni_ai.checks.engine import _compare, norm, split_names
+
+		self.assertEqual(norm("Al-Noor  Trading Co."), norm("alnoor trading co"))
+		self.assertEqual(norm("شركة  الواحة"), norm("شركة الواحة"))
+		self.assertNotEqual(norm("Al Noor Trading"), norm("Al Noor Trading 2"))
+		self.assertEqual(split_names("supplier, bill_no\nitems.rate ,"), ["supplier", "bill_no", "items.rate"])
+		self.assertTrue(_compare(5, ">=", "5", True, False))
+		self.assertFalse(_compare(4.99, ">=", "5", True, False))
+		self.assertTrue(_compare("High", "in", "low, HIGH", False, False))
+		self.assertTrue(_compare("Urgent", "not in", "low, high", False, False))
+		self.assertTrue(_compare("2026-03-10", ">", "2026-03-09", False, True))
+		self.assertTrue(_compare(None, ">", "2026-03-09", False, True))  # an empty date is not a wrong date
+		self.assertTrue(_compare("Open", "=", "open", False, False))
+
+	def test_outliers_and_trend(self):
+		from omni_ai.tools import analysis
+
+		normal = [100, 102, 98, 101, 99, 103, 97, 100]
+		self.assertEqual(analysis.outliers([(v, i) for i, v in enumerate(normal)]), [])
+		found = analysis.outliers([(v, i) for i, v in enumerate(normal + [400])])
+		self.assertEqual([(index, value) for _s, index, value, _t in found], [(8, 400)])
+		self.assertEqual(analysis.outliers([(v, i) for i, v in enumerate([1, 2, 500])]), [])  # too few to judge
+		line = analysis.trend([10, 20, 30, 40, 50, 60])
+		self.assertAlmostEqual(line["slope"], 10)
+		self.assertAlmostEqual(line["fit"], 1.0)
+		self.assertAlmostEqual(line["error"], 0)
+		flat = analysis.trend([5, 5, 5, 5, 5, 5])
+		self.assertEqual((flat["slope"], flat["fit"]), (0, 1.0))
+		self.assertEqual(analysis.summary([1, 2, 3, 10])["median"], 2.5)
+
+	def test_starter_rules_are_well_formed(self):
+		from omni_ai.checks.defaults import STARTER_RULES
+		from omni_ai.checks.engine import CHECKS
+
+		self.assertGreater(len(STARTER_RULES), 20)
+		for rule in STARTER_RULES:
+			self.assertIn(rule["rule_type"], CHECKS, rule["title"])
+			self.assertTrue(rule["title"] and rule["document_type"])
+			self.assertNotIn("action", rule)  # every starter rule begins as a warning
+		pairs = [(r["title"], r["document_type"]) for r in STARTER_RULES]
+		self.assertEqual(len(pairs), len(set(pairs)))
+
+	def test_monitors_are_well_formed(self):
+		from omni_ai.control import monitors
+
+		found = monitors._monitors()
+		keys = [m["key"] for m in found]
+		self.assertEqual(len(keys), len(set(keys)))
+		for monitor in found:
+			self.assertIn(monitor["severity"], monitors.SEVERITY)
+			self.assertTrue(monitor["title"] and monitor["why"] and monitor["doctype"] and monitor["area"])
+			self.assertTrue(monitor.get("filters") or monitor.get("custom") in monitors.CUSTOM)

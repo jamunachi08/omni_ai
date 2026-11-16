@@ -1,7 +1,7 @@
 {
  "actions": [],
  "autoname": "hash",
- "creation": "2026-11-15 15:00:00.000000",
+ "creation": "2026-11-16 12:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -18,7 +18,8 @@
   "output_tokens",
   "active_run",
   "schedule",
-  "pending_notes"
+  "pending_notes",
+  "read_only"
  ],
  "fields": [
   {
@@ -107,11 +108,17 @@
    "label": "Pending Notes (JSON)",
    "read_only": 1,
    "hidden": 1
+  },
+  {
+   "fieldname": "read_only",
+   "fieldtype": "Check",
+   "label": "Read Only",
+   "description": "In a read-only conversation the assistant can look things up but cannot propose any change."
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-15 15:00:00.000000",
+ "modified": "2026-11-16 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "AI Assistant",
  "name": "AI Assistant Conversation",

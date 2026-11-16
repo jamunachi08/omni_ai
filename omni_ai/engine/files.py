@@ -138,3 +138,28 @@ def _docx_text(data: bytes) -> str:
 	text = re.sub(r"<[^>]+>", "", xml)
 	text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'")
 	return clip(text.strip(), MAX_TEXT_CHARS)
+
+
+def extract_text(file_doc, limit: int = MAX_TEXT_CHARS) -> str:
+	"""Plain text of a stored file (PDF, Word, Excel, text). Raises ValueError when nothing can be read."""
+	name = file_doc.file_name or ""
+	ext = extension(name)
+	if (file_doc.file_size or 0) > MAX_FILE_BYTES:
+		raise ValueError(f"the file is larger than {MAX_FILE_BYTES // 1_000_000} MB")
+	data = _read_bytes(file_doc)
+	if ext == "pdf":
+		from pypdf import PdfReader
+
+		reader = PdfReader(io.BytesIO(data))
+		text = "\n\n".join((page.extract_text() or "") for page in reader.pages[:1500]).strip()
+		if not text:
+			raise ValueError("no text could be read from this PDF (it may be a scan); paste the text instead")
+	elif ext in SHEET_TYPES:
+		text = _sheet_text(data)
+	elif ext == "docx":
+		text = _docx_text(data)
+	elif ext in TEXT_TYPES:
+		text = data.decode("utf-8", errors="replace")
+	else:
+		raise ValueError(f"files of type .{ext} cannot be read; use PDF, Word (.docx), Excel, CSV or text")
+	return text[:limit]

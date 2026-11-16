@@ -25,7 +25,7 @@ def _conversation(name: str):
 	row = frappe.db.get_value(
 		"AI Assistant Conversation",
 		name,
-		["name", "title", "user", "pinned", "active_run", "last_message_at", "pending_notes"],
+		["name", "title", "user", "pinned", "active_run", "last_message_at", "pending_notes", "read_only"],
 		as_dict=True,
 	)
 	if not row or row.user != frappe.session.user:
@@ -138,7 +138,7 @@ def list_conversations(search: str | None = None, start: int = 0, limit: int = 4
 	rows = frappe.get_all(
 		"AI Assistant Conversation",
 		filters=filters,
-		fields=["name", "title", "pinned", "last_message_at", "modified"],
+		fields=["name", "title", "pinned", "read_only", "last_message_at", "modified"],
 		order_by="pinned desc, modified desc",
 		limit_start=cint(start),
 		limit_page_length=min(cint(limit) or 40, 100),
@@ -162,6 +162,7 @@ def get_conversation(name: str):
 		"name": conv.name,
 		"title": conv.title,
 		"pinned": conv.pinned,
+		"read_only": cint(conv.read_only),
 		"messages": messages,
 		"active_run": _active_run(conv),
 	}
@@ -183,6 +184,14 @@ def pin_conversation(name: str, pinned: int = 1):
 
 
 @frappe.whitelist(methods=["POST"])
+def set_read_only(name: str, read_only: int = 1):
+	"""Switch a conversation between normal and read-only (no change can be proposed in it)."""
+	conv = _conversation(name)
+	frappe.db.set_value("AI Assistant Conversation", conv.name, "read_only", 1 if cint(read_only) else 0, update_modified=False)
+	return cint(read_only)
+
+
+@frappe.whitelist(methods=["POST"])
 def delete_conversation(name: str):
 	conv = _conversation(name)
 	if _active_run(conv):
@@ -197,7 +206,14 @@ def delete_conversation(name: str):
 
 
 @frappe.whitelist(methods=["POST"])
-def send(message: str, conversation: str | None = None, attachments=None, page_context=None, run_id: str | None = None):
+def send(
+	message: str,
+	conversation: str | None = None,
+	attachments=None,
+	page_context=None,
+	run_id: str | None = None,
+	read_only: int = 0,
+):
 	"""Store the user's message and start the assistant's reply.
 
 	The browser may pass its own random `run_id` so it can start listening for the streamed reply before
@@ -223,7 +239,9 @@ def send(message: str, conversation: str | None = None, attachments=None, page_c
 		if _active_run(conv):
 			frappe.throw(_("Please wait for the current reply to finish, or stop it first."))
 	else:
-		doc = frappe.get_doc({"doctype": "AI Assistant Conversation", "title": "New conversation", "user": user})
+		doc = frappe.get_doc(
+			{"doctype": "AI Assistant Conversation", "title": "New conversation", "user": user, "read_only": 1 if cint(read_only) else 0}
+		)
 		doc.flags.ignore_permissions = True
 		doc.insert(ignore_permissions=True)
 		conv = frappe._dict(name=doc.name, title=doc.title, pending_notes=None)
@@ -402,7 +420,17 @@ def confirm_action(action: str):
 		_add_note(row.conversation, f"The user confirmed '{row.title}' but it failed: {reason}")
 		frappe.db.commit()
 		return {"status": "Failed", "message": reason}
+	# warnings raised while saving (entry checks, stock notices) must reach the user, not vanish
+	notices = []
+	for raw in frappe.local.message_log or []:
+		item = loads(raw, raw) if isinstance(raw, str) else raw
+		text = item.get("message") if isinstance(item, dict) else str(item)
+		if text:
+			notices.append(clip(frappe.utils.strip_html_tags(str(text)), 400))
 	frappe.local.message_log = []
+	if notices:
+		result["warnings"] = notices[:5]
+		result["message"] = f"{result['message']} Please check: {' '.join(notices[:5])}"
 	_add_note(row.conversation, f"The user confirmed '{row.title}'. Result: {result['message']}")
 	return result
 
