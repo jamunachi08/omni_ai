@@ -1,6 +1,6 @@
 [project]
 name = "omni_ai"
-authors = [{ name = "Omni AI" }]
+authors = [{ name = "Neotec Integrated Solutions" }]
 description = "A white-label AI assistant inside ERPNext and Frappe: chat, analysis, charts, report building and guarded actions."
 requires-python = ">=3.10"
 readme = "README.md"

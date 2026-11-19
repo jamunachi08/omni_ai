@@ -16,7 +16,6 @@ from omni_ai.tools.base import (
 	Tool,
 	ToolError,
 	clean_rows,
-	columns_from_names,
 	tabular_reply,
 )
 from omni_ai.tools.data import (
@@ -198,6 +197,7 @@ def run_report(args, ctx):
 		) from exc
 
 	columns, rows = normalise_report_result(result.get("columns") or [], result.get("result") or [])
+	columns, rows = drop_secret_columns(columns, rows)
 	extra = {}
 	if result.get("message"):
 		extra["report_message"] = clip(frappe.utils.strip_html_tags(str(result["message"])), 800)
@@ -206,6 +206,16 @@ def run_report(args, ctx):
 			{"label": s.get("label"), "value": s.get("value")} for s in result["report_summary"] if isinstance(s, dict)
 		][:12]
 	return tabular_reply(ctx, columns, rows, title=report.name, preview=args.get("preview_rows"), extra=extra or None)
+
+
+def drop_secret_columns(columns: list, rows: list) -> tuple:
+	"""Remove report columns whose field name marks them as credentials, as every other tool does."""
+	from omni_ai.tools.data import SECRET_FIELD_RE
+
+	keep = [i for i, c in enumerate(columns) if not SECRET_FIELD_RE.search(str(c.get("fieldname") or ""))]
+	if len(keep) == len(columns):
+		return columns, rows
+	return [columns[i] for i in keep], [[row[i] for i in keep if i < len(row)] for row in rows]
 
 
 def _pop_messages() -> list:
@@ -581,6 +591,35 @@ def _report_details(payload: dict, values: dict) -> list:
 # -- saving (called from the action executor, i.e. only after the user confirms) -----------------
 
 
+GENERIC_ROLES = {"All", "Guest", "Desk User", "Administrator"}
+
+
+def _read_roles(doctype: str) -> set:
+	try:
+		from frappe.permissions import get_doctype_roles
+
+		return set(get_doctype_roles(doctype, "read"))
+	except Exception:
+		return {p.role for p in frappe.get_meta(doctype).permissions if p.read and not p.permlevel}
+
+
+def report_roles(doctypes: list, user: str) -> list:
+	"""Roles allowed to run a saved Query Report: the creator's roles that can read every DocType in its SQL
+	(through a parent for child tables). Falls back to System Manager when no role qualifies."""
+	from omni_ai.tools.data import parents_of
+
+	roles = set(frappe.get_roles(user)) - GENERIC_ROLES
+	for doctype in doctypes or []:
+		targets = parents_of(doctype) if frappe.get_meta(doctype).istable else [doctype]
+		readers = set()
+		for target in targets:
+			readers |= _read_roles(target)
+		if "All" in readers:
+			continue  # everyone may read it: no narrowing needed
+		roles &= readers
+	return sorted(roles) or ["System Manager"]
+
+
 def save_report(payload: dict, user: str) -> dict:
 	meta = get_meta_or_error(payload.get("ref_doctype"))
 	if not can_read(meta.name, meta) or not frappe.has_permission(meta.name, "report"):
@@ -598,8 +637,12 @@ def save_report(payload: dict, user: str) -> dict:
 		if not can_save_query_reports(user):
 			frappe.throw("Your role is not allowed to save Query Reports.", frappe.PermissionError)
 		# validate again at save time: permissions or settings may have changed since the draft
-		validate_select(payload["query"])
+		checked = validate_select(payload["query"])
 		doc.query = payload["query"]
+		# The SQL runs without the reader's own permissions, so only roles that may read every DocType it
+		# uses (and that the creator holds) may run it. Without roles, anyone who can read ref_doctype could.
+		for role in report_roles(checked["doctypes"], user):
+			doc.append("roles", {"role": role})
 		doc.add_total_row = cint(payload.get("add_total_row"))
 		for col in payload.get("columns") or []:
 			doc.append(

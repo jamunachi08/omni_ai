@@ -18,9 +18,12 @@ AGG_FUNCTIONS = {"sum", "count", "avg", "min", "max"}
 FIELDNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SKIP_FIELDTYPES = set(no_value_fields) - {"Table", "Table MultiSelect"}
 # Field names that hold credentials or tokens. They are never read, whatever their field type.
+# Covers custom fields too: any name containing password / secret (not "secretary") / api_key / private_key /
+# encryption_key / csid / basic_auth, or ending in "token" (access_token, webhook_token, custom_token ...).
+# A ZATCA CSID or basic-auth value is a credential. "input_tokens" or "token_count" are not matched.
 SECRET_FIELD_RE = re.compile(
-	r"\b\w*(?:password|passwd|api_key|api_secret|otp_secret|client_secret|access_token|refresh_token|"
-	r"private_key|secret_key|secret_access_key|webhook_secret|encryption_key|auth_token|bearer_token)\w*\b",
+	r"\b\w*(?:password|passwd|secret(?!ar)|api_key|private_key|encryption_key|csid|basic_auth)\w*\b"
+	r"|\b\w*token\b",
 	re.I,
 )
 # Never expose these through the assistant, whatever the user's role.
@@ -49,6 +52,8 @@ HIDDEN_DOCTYPES = {
 	"Push Notification Settings",
 	"AI Assistant Automation",
 	"AI Assistant Knowledge",
+	"ERP MCP Token",
+	"ERP MCP Settings",
 }
 
 

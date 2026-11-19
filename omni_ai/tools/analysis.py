@@ -78,9 +78,9 @@ def trend(values: list) -> dict:
 	xs = list(range(n))
 	mean_x, mean_y = (n - 1) / 2, statistics.fmean(values)
 	sxx = sum((x - mean_x) ** 2 for x in xs)
-	slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, values)) / sxx if sxx else 0.0
+	slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, values, strict=False)) / sxx if sxx else 0.0
 	intercept = mean_y - slope * mean_x
-	residuals = [y - (intercept + slope * x) for x, y in zip(xs, values)]
+	residuals = [y - (intercept + slope * x) for x, y in zip(xs, values, strict=False)]
 	total = sum((y - mean_y) ** 2 for y in values)
 	fit = 1 - sum(r * r for r in residuals) / total if total else 1.0
 	error = (sum(r * r for r in residuals) / (n - 2)) ** 0.5 if n > 2 else 0.0

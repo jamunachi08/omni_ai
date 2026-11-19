@@ -71,14 +71,19 @@ def run_schedule(name: str, manual: bool = False):
 			_send_email(doc, user, conversation, reply)
 			status = "Sent"
 			if doc.get("chat_channel") and (doc.get("chat_webhook") or "").strip():
-				try:
-					from omni_ai.engine import delivery
+				from omni_ai.engine import delivery
+				from omni_ai.utils import ADMIN_ROLES, has_any_role
 
-					base = "/desk" if frappe_major() >= 16 else "/app"
-					delivery.post(doc.chat_channel, doc.chat_webhook, doc.title, reply.text(), get_url(f"{base}/ai-assistant/{conversation}"))
-					status = f"Sent, and posted to {doc.chat_channel}"
-				except Exception as exc:
-					status = clip(f"Sent by email; {doc.chat_channel} post failed: {exc}", 130)
+				if not (has_any_role(ADMIN_ROLES, user) or delivery.webhook_approved(doc.chat_webhook)):
+					# set up before 1.5.1, or the list changed since: email only
+					status = clip(f"Sent by email; not posted to {doc.chat_channel}: webhook not approved", 130)
+				else:
+					try:
+						base = "/desk" if frappe_major() >= 16 else "/app"
+						delivery.post(doc.chat_channel, doc.chat_webhook, doc.title, reply.text(), get_url(f"{base}/ai-assistant/{conversation}"))
+						status = f"Sent, and posted to {doc.chat_channel}"
+					except Exception as exc:
+						status = clip(f"Sent by email; {doc.chat_channel} post failed: {exc}", 130)
 	except Exception as exc:
 		frappe.db.rollback()
 		status = clip(f"Failed: {exc}", 130)

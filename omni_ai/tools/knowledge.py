@@ -11,8 +11,9 @@ import re
 
 import frappe
 
+from omni_ai.engine.textnorm import normalize_set, tokens
 from omni_ai.tools.base import Tool, ToolError
-from omni_ai.utils import clip, get_settings, user_roles
+from omni_ai.utils import get_settings, user_roles
 
 DOCTYPE = "AI Assistant Knowledge"
 PASSAGE_CHARS = 1100
@@ -21,7 +22,7 @@ MAX_PASSAGES = 400  # per document (about 400,000 characters)
 MAX_CONTENT_CHARS = PASSAGE_CHARS * MAX_PASSAGES
 RESULTS = 6
 WORD_RE = re.compile(r"[^\W\d_]{2,}|\d+", re.UNICODE)
-STOPWORDS = set(
+STOPWORDS = normalize_set(
 	"the and for with from that this what which when where how are was were has have had not you your our can could "
 	"would should about into over per all any each than then them they does did who whom will shall may must "
 	"في من على إلى عن مع هذا هذه التي الذي ما هل كم كيف أو ثم أن إن كان".split()
@@ -54,7 +55,8 @@ def split_passages(text: str) -> list:
 
 
 def words(text: str) -> list:
-	return [w for w in (m.lower() for m in WORD_RE.findall(text or "")) if w not in STOPWORDS]
+	"""Comparable words of `text`: Arabic spelling variants folded, diacritics dropped, ال and plural endings stripped."""
+	return tokens(text, STOPWORDS)
 
 
 def rank_by_words(query: str, passages: list) -> list:

@@ -7,9 +7,12 @@
  "field_order": [
   "tool",
   "user",
+  "source",
   "status",
   "col_1",
   "conversation",
+  "client",
+  "token",
   "duration_ms",
   "row_count",
   "sec_detail",
@@ -36,6 +39,17 @@
    "search_index": 1
   },
   {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Chat\nScheduled\nMCP",
+   "default": "Chat",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "description": "Where the call came from: the chat, a scheduled task, or an outside agent over MCP."
+  },
+  {
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
@@ -54,6 +68,20 @@
    "label": "Conversation",
    "options": "AI Assistant Conversation",
    "read_only": 1
+  },
+  {
+   "fieldname": "client",
+   "fieldtype": "Data",
+   "label": "Client",
+   "read_only": 1,
+   "description": "For MCP calls: the agent software, as it identified itself."
+  },
+  {
+   "fieldname": "token",
+   "fieldtype": "Data",
+   "label": "MCP Token",
+   "read_only": 1,
+   "description": "For MCP calls made with an ERP MCP Token: which one."
   },
   {
    "fieldname": "duration_ms",
@@ -88,7 +116,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-16 12:00:00.000000",
+ "modified": "2026-11-19 11:30:00.000000",
  "modified_by": "Administrator",
  "module": "AI Assistant",
  "name": "AI Assistant Tool Log",
@@ -97,7 +125,7 @@
   {
    "role": "System Manager",
    "read": 1,
-   "delete": 1,
+   "delete": 0,
    "report": 1,
    "export": 1
   }

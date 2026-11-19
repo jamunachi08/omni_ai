@@ -395,7 +395,11 @@ def confirm_action(action: str):
 	"""The user pressed Save / Confirm on a card. Runs the action as that user."""
 	require_access()
 	user = frappe.session.user
-	row = frappe.db.get_value("AI Assistant Action", action, ["name", "user", "status", "conversation", "title"], as_dict=True)
+	# Lock the row until this request commits: a second click (or a second tab) waits here, then sees the
+	# action is no longer Pending, instead of running it twice.
+	row = frappe.db.get_value(
+		"AI Assistant Action", action, ["name", "user", "status", "conversation", "title"], as_dict=True, for_update=True
+	)
 	if not row or row.user != user:
 		frappe.throw(_("Action not found."), frappe.DoesNotExistError)
 	if row.status != "Pending":

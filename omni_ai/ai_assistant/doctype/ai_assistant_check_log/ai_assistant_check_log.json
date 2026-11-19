@@ -89,7 +89,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-16 12:00:00.000000",
+ "modified": "2026-11-19 11:30:00.000000",
  "modified_by": "Administrator",
  "module": "AI Assistant",
  "name": "AI Assistant Check Log",
@@ -98,7 +98,7 @@
   {
    "role": "System Manager",
    "read": 1,
-   "delete": 1,
+   "delete": 0,
    "report": 1,
    "export": 1
   }

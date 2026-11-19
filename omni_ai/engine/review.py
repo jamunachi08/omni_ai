@@ -8,7 +8,7 @@ assistant, which can redraft. If the review cannot run, the draft is shown witho
 import json
 import re
 
-from omni_ai.utils import clip, dumps, get_api_key, get_settings, to_int
+from omni_ai.utils import clip, dumps, get_settings, to_int
 
 SYSTEM = """You review report definitions for an ERPNext / Frappe business system (MariaDB) before a user saves them.
 Your job is to find real defects in the logic, not to restyle it. Try to refute the draft: assume it is wrong and look for

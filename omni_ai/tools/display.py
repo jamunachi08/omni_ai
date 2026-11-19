@@ -7,12 +7,20 @@ import re
 import frappe
 
 from omni_ai.tools.base import UI_TABLE_ROWS, Tool, ToolError, clean_rows
-from omni_ai.utils import clip, to_int
+from omni_ai.utils import clip
 
 CHART_TYPES = ("bar", "line", "pie", "donut", "percentage")
 MAX_CHART_POINTS = 60
 MAX_SERIES = 8
 MAX_EXPORT_ROWS = 50000
+FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def safe_cell(value):
+	"""Text that a spreadsheet would run as a formula gets a leading apostrophe (record contents are data)."""
+	if isinstance(value, str) and value.startswith(FORMULA_START):
+		return "'" + value
+	return value
 
 
 def _dataset(args, ctx) -> tuple:
@@ -125,7 +133,8 @@ def export_data(args, ctx):
 		raise ToolError("format must be 'xlsx' or 'csv'.")
 	rows = rows[:MAX_EXPORT_ROWS]
 	base = re.sub(r"[^\w\- ]+", "", str(args.get("filename") or stored_title or "export")).strip()[:80] or "export"
-	header = [str(c.get("label") or c.get("fieldname")) for c in columns]
+	header = [safe_cell(str(c.get("label") or c.get("fieldname"))) for c in columns]
+	rows = [[safe_cell(v) for v in row] for row in rows]
 
 	if fmt == "xlsx":
 		from frappe.utils.xlsxutils import make_xlsx

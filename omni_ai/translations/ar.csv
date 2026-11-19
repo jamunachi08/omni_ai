@@ -185,3 +185,7 @@
 "Projects","المشاريع",""
 "HR","الموارد البشرية",""
 "Master data","البيانات الأساسية",""
+"{0} already exists on another {1}.","{0} موجود مسبقاً في {1} آخر.",""
+"Approved Chat Webhooks","عناوين قنوات الدردشة المعتمدة",""
+"Keep Audit Log For (days)","مدة الاحتفاظ بسجل التدقيق (بالأيام)",""
+"This channel is not on the approved list. Ask a System Manager to add its webhook address to Approved Chat Webhooks in the assistant settings.","هذه القناة ليست ضمن القائمة المعتمدة. اطلب من مدير النظام إضافة عنوانها إلى «عناوين قنوات الدردشة المعتمدة» في إعدادات المساعد.",""

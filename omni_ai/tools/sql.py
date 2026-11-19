@@ -45,6 +45,11 @@ BARE_TABLE_RE = re.compile(r"\b(?:from|join)\s+([A-Za-z_][\w$.]*)", re.I)
 CTE_RE = re.compile(r"(?:\bwith\b|,)\s*([A-Za-z_]\w*)\s+as\s*\(", re.I)
 TRAILING_LIMIT_RE = re.compile(r"\blimit\s+\d+(\s*,\s*\d+|\s+offset\s+\d+)?\s*$", re.I)
 PLACEHOLDER_RE = re.compile(r"%\((\w+)\)s")
+# `SELECT *`, `SELECT DISTINCT *`, `a, *` and `t.*` (but not count(*) or a * b), on the skeleton
+STAR_RE = re.compile(
+	r"(?:\bselect\s+(?:(?:all|distinct|distinctrow|high_priority|straight_join|sql_\w+)\s+)*|,\s*|\.\s*)\*",
+	re.I,
+)
 
 
 PERCENT_RE = re.compile(r"%\(\w+\)s|%%|%")
@@ -103,6 +108,15 @@ def _database_tables() -> set:
 			pass
 		frappe.cache.set_value("omni_ai:db_tables", tables, expires_in_sec=300)
 	return set(tables)
+
+
+def secret_columns(doctype: str) -> list:
+	"""Columns of a DocType table whose names mark them as credentials."""
+	try:
+		names = frappe.db.get_table_columns(doctype)
+	except Exception:
+		names = [df.fieldname for df in frappe.get_meta(doctype).fields]
+	return [n for n in names if SECRET_COLUMNS_RE.search(str(n))]
 
 
 def validate_select(query: str, check_permissions: bool = True) -> dict:
@@ -190,6 +204,15 @@ def validate_select(query: str, check_permissions: bool = True) -> dict:
 			raise SQLGuardError(WITHHELD_MESSAGE.format(doctype), denied=True)
 		if check_permissions and not can_read(doctype, meta):
 			raise SQLGuardError(f"The current user does not have permission to read {doctype}.", denied=True)
+
+	# Credential columns are also removed from results by name, but a UNION or a column list can give a
+	# `*` column another name. So `*` is refused on any table that has a credential column.
+	if doctypes and STAR_RE.search(skeleton):
+		for doctype in doctypes:
+			if secret_columns(doctype):
+				raise SQLGuardError(
+					f"`tab{doctype}` has credential columns, so `*` cannot be used on it. Name the columns you need."
+				)
 
 	return {"query": query, "doctypes": doctypes, "placeholders": sorted(set(PLACEHOLDER_RE.findall(query)))}
 

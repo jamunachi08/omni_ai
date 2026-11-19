@@ -43,6 +43,13 @@ class AIAssistantSchedule(Document):
 				self.chat_webhook = check_webhook(self.chat_channel, self.chat_webhook)
 			except ValueError as exc:
 				frappe.throw(_(str(exc)))
+			from omni_ai.engine.delivery import webhook_approved
+
+			# email goes only to the owner's own address; a channel must likewise be one an administrator approved
+			if not has_any_role(ADMIN_ROLES) and not webhook_approved(self.chat_webhook):
+				frappe.throw(
+					_("This channel is not on the approved list. Ask a System Manager to add its webhook address to Approved Chat Webhooks in the assistant settings.")
+				)
 		else:
 			frappe.throw(_("Enter the incoming webhook address of the channel, or clear 'Also Post To'."))
 

@@ -1,4 +1,4 @@
-__version__ = "1.4.0"
+__version__ = "1.5.1"
 
 
 def ask(prompt, system=None, max_tokens=2000, model=None, user=None, timeout=120):

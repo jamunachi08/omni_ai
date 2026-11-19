@@ -13,7 +13,9 @@ import statistics
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, flt, fmt_money, getdate, now, today
+from frappe.utils import add_days, escape_html, flt, fmt_money, getdate, now, today
+
+from omni_ai.engine.textnorm import best_prefilter_word, like_pattern, normalize_text
 
 RULE = "AI Assistant Check Rule"
 LOG = "AI Assistant Check Log"
@@ -76,8 +78,11 @@ def _active(doc) -> list:
 
 
 def norm(value) -> str:
-	"""Text reduced to letters and digits in lower case, for 'same apart from spelling details' comparisons."""
-	return re.sub(r"[\W_]+", "", str(value or "").casefold())
+	"""Text reduced to letters and digits in lower case, for 'same apart from spelling details' comparisons.
+
+	Arabic spelling variants (إ/أ/ا, ة/ه, ى/ي, diacritics, Arabic-Indic digits) count as the same.
+	"""
+	return re.sub(r"[\W_]+", "", normalize_text(value or "").casefold())
 
 
 def split_names(text) -> list:
@@ -121,9 +126,11 @@ def check_duplicate(doc, rule) -> list:
 		filters.append(["name", "!=", doc.name])
 	if rule.get("ignore_case_and_spacing"):
 		first = fields[0]
-		words = sorted(re.findall(r"[^\W_]{3,}", str(values[first])), key=len, reverse=True)
-		if words:
-			filters.append([first, "like", f"%{words[0]}%"])
+		# pre-filter in SQL on one word; letters with several spellings become wildcards so a variant still matches
+		words = re.findall(r"[^\W_]{3,}", normalize_text(values[first]))
+		pick = best_prefilter_word(words)
+		if pick:
+			filters.append([first, "like", f"%{like_pattern(pick)}%"])
 		else:
 			filters.append([first, "=", values[first]])
 		found = None
@@ -137,8 +144,11 @@ def check_duplicate(doc, rule) -> list:
 		found = (frappe.get_all(doc.doctype, filters=filters, pluck="name", limit=1) or [None])[0]
 	if not found:
 		return []
-	shown = ", ".join(f"{label_of(doc.meta, f)} {frappe.bold(str(values[f]))}" for f in fields)
-	return [_("{0} already exists on {1} {2}.").format(shown, _(doc.doctype), frappe.bold(found))]
+	shown = ", ".join(f"{label_of(doc.meta, f)} {frappe.bold(escape_html(str(values[f])))}" for f in fields)
+	if not frappe.has_permission(doc.doctype, "read", found):
+		# the search ignores permissions; do not show the ID of a record this user cannot open
+		return [_("{0} already exists on another {1}.").format(shown, _(doc.doctype))]
+	return [_("{0} already exists on {1} {2}.").format(shown, _(doc.doctype), frappe.bold(escape_html(str(found))))]
 
 
 def check_required(doc, rule) -> list:

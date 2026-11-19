@@ -44,6 +44,16 @@ def check_webhook(channel: str, url: str) -> str:
 	raise ValueError(f"This is not a {channel} incoming-webhook address.")
 
 
+def _norm_url(url) -> str:
+	return str(url or "").strip().rstrip("/")
+
+
+def webhook_approved(url: str) -> bool:
+	"""Is this address on the administrator's list of approved chat webhooks (AI Assistant Settings)?"""
+	listed = frappe.get_cached_doc("AI Assistant Settings").get("approved_chat_webhooks") or ""
+	return bool(_norm_url(url)) and _norm_url(url) in {_norm_url(line) for line in listed.splitlines() if line.strip()}
+
+
 def plain_text(markdown: str, bold: str = "*") -> str:
 	"""Markdown as the simple text chat services render: headings and bold become bold, tables are dropped."""
 	lines = []

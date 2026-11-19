@@ -2,6 +2,7 @@
 
 import frappe
 
+from omni_ai.engine.redact import redact
 from omni_ai.tools.base import MAX_RESULT_CHARS, Timer, ToolContext, ToolError
 from omni_ai.utils import clip, dumps, to_int
 
@@ -116,7 +117,7 @@ def execute_tool(ctx: ToolContext, tools: dict, name: str, args: dict) -> tuple:
 		rows = to_int(result.get("total_rows"), 0)
 	if not error and name in DATA_TOOLS:
 		ctx.data_tools_used += 1
-	_log(ctx, name, args, status, error, timer.ms, rows)
+	log_call(ctx, name, args, status, error, timer.ms, rows)
 
 	if error:
 		summary = "No permission" if status == "Denied" else "Could not complete"
@@ -138,21 +139,27 @@ def _rollback():
 		pass
 
 
-def _log(ctx, name, args, status, error, duration_ms, rows):
+def log_call(ctx, name, args, status, error, duration_ms, rows):
+	"""Write one row to the audit log. Secrets (and, when masking is on, personal data) are removed first."""
 	try:
 		if not ctx.settings.log_tool_calls:
 			return
+		mask = bool(ctx.settings.get("mask_personal_data"))
+		audit = getattr(ctx, "audit", None) or {}
 		doc = frappe.get_doc(
 			{
 				"doctype": "AI Assistant Tool Log",
 				"tool": name,
 				"user": ctx.user,
 				"conversation": ctx.conversation,
+				"source": audit.get("source") or ("Scheduled" if ctx.unattended else "Chat"),
+				"client": clip(audit.get("client") or "", 140),
+				"token": clip(audit.get("token") or "", 140),
 				"status": status,
 				"duration_ms": duration_ms,
 				"row_count": rows,
-				"arguments": clip(dumps(args), 8000),
-				"error": clip(error or "", 1000),
+				"arguments": clip(redact(dumps(args), mask), 8000),
+				"error": clip(redact(error or "", mask), 1000),
 			}
 		)
 		doc.flags.ignore_permissions = True
@@ -160,3 +167,6 @@ def _log(ctx, name, args, status, error, duration_ms, rows):
 		frappe.db.commit()
 	except Exception:
 		_rollback()
+
+
+_log = log_call  # older name, kept for callers that import it

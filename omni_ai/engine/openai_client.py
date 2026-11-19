@@ -14,7 +14,7 @@ import time
 
 import requests
 
-from omni_ai.engine.client import MAX_RETRIES, RETRY_STATUS, ProviderError, Stopped, _friendly, _is_number
+from omni_ai.engine.client import MAX_RETRIES, RETRY_STATUS, ProviderError, _friendly, _is_number
 
 FINISH = {"stop": "end_turn", "tool_calls": "tool_use", "function_call": "tool_use", "length": "max_tokens", "content_filter": "refusal"}
 MAX_PDF_CHARS = 120_000

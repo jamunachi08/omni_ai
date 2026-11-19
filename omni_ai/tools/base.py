@@ -55,6 +55,8 @@ class ToolContext:
 		self.settings = get_settings()
 		self.max_rows = max(1, to_int(self.settings.max_rows, 5000) or 5000)
 		self.created_actions = []
+		# where this call came from, for the audit log: {"source": "MCP", "client": ..., "token": ...}
+		self.audit = {}
 
 	# -- display parts --------------------------------------------------
 

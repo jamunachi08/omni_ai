@@ -74,6 +74,7 @@
   "enable_schedules",
   "col_schedules",
   "max_schedules_per_user",
+  "approved_chat_webhooks",
   "sec_automations",
   "enable_automations",
   "tab_privacy",
@@ -100,7 +101,8 @@
   "col_limits",
   "history_turns",
   "retention_days",
-  "log_tool_calls"
+  "log_tool_calls",
+  "audit_retention_days"
  ],
  "fields": [
   {
@@ -527,6 +529,13 @@
    "depends_on": "enable_schedules"
   },
   {
+   "fieldname": "approved_chat_webhooks",
+   "fieldtype": "Small Text",
+   "label": "Approved Chat Webhooks",
+   "depends_on": "enable_schedules",
+   "description": "One incoming-webhook address per line. Users who are not System Managers can post scheduled results only to these Slack, Teams or Google Chat channels (email still goes only to their own address)."
+  },
+  {
    "fieldname": "sec_automations",
    "fieldtype": "Section Break",
    "label": "Automations"
@@ -689,12 +698,20 @@
    "fieldtype": "Check",
    "label": "Keep an Audit Log of Data Access",
    "default": "1"
+  },
+  {
+   "fieldname": "audit_retention_days",
+   "fieldtype": "Int",
+   "label": "Keep Audit Log For (days)",
+   "default": "365",
+   "depends_on": "log_tool_calls",
+   "description": "How long Tool Log rows are kept. 0 keeps them forever. Separate from conversation retention, so deleting old chats does not delete the audit trail."
   }
  ],
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-16 12:00:00.000000",
+ "modified": "2026-11-19 11:30:00.000000",
  "modified_by": "Administrator",
  "module": "AI Assistant",
  "name": "AI Assistant Settings",

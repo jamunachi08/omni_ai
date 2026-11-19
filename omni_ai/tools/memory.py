@@ -17,6 +17,7 @@ import re
 import frappe
 from frappe.utils import now_datetime
 
+from omni_ai.engine.textnorm import normalize_set, tokens
 from omni_ai.tools.base import Tool, ToolError
 from omni_ai.utils import ADMIN_ROLES, clip, get_settings, has_any_role, to_int
 
@@ -24,7 +25,7 @@ DOCTYPE = "AI Assistant Memory"
 MAX_NOTE_CHARS = 600
 RECALL_CHAR_BUDGET = 3500
 WORD_RE = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
-STOPWORDS = set(
+STOPWORDS = normalize_set(
 	"the and for with from that this what which when where how are was were has have had not you your our "
 	"show give list make please can could would should about into over per all any each than then them they "
 	"report reports data".split()
@@ -45,7 +46,7 @@ def enabled() -> bool:
 
 
 def _words(text: str) -> set:
-	return {w.lower() for w in WORD_RE.findall(text or "")} - STOPWORDS
+	return {w for w in tokens(text, STOPWORDS) if len(w) >= 3}
 
 
 def _visible_filters(user: str):
@@ -75,7 +76,7 @@ def embed_texts(texts: list) -> list:
 def _cosine(a: list, b: list) -> float:
 	if not a or not b or len(a) != len(b):
 		return -1.0
-	dot = sum(x * y for x, y in zip(a, b))
+	dot = sum(x * y for x, y in zip(a, b, strict=False))
 	na = sum(x * x for x in a) ** 0.5
 	nb = sum(y * y for y in b) ** 0.5
 	return dot / (na * nb) if na and nb else -1.0

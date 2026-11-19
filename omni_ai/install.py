@@ -7,12 +7,22 @@ def after_install():
 	ensure_role()
 	ensure_defaults()
 	ensure_starter_rules()
+	ensure_indexes()
 
 
 def after_migrate():
 	ensure_role()
 	ensure_defaults()
 	ensure_starter_rules()
+	ensure_indexes()
+
+
+def ensure_indexes():
+	"""Every message checks the user's daily and monthly use by owner, role and date; index that."""
+	try:
+		frappe.db.add_index("AI Assistant Message", ["owner", "role", "creation"], "omni_ai_usage_index")
+	except Exception:
+		frappe.log_error(title="AI Assistant: usage index could not be added")
 
 
 def ensure_starter_rules():
@@ -52,6 +62,10 @@ def ensure_defaults():
 		if not settings.get(fieldname):
 			settings.set(fieldname, value)
 			changed = True
+	if frappe.db.get_value("Singles", {"doctype": SETTINGS, "field": "audit_retention_days"}, "value") is None:
+		# new in 1.5.1; before it the audit log followed the conversation period, now it is kept a year
+		settings.audit_retention_days = 365
+		changed = True
 	if settings.get("brand_name") == "Assistant":  # the placeholder name of versions before 1.4
 		settings.brand_name = "Neotec AI"
 		changed = True

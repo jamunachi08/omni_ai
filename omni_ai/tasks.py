@@ -5,21 +5,25 @@ from omni_ai.utils import get_settings, to_int
 
 
 def daily_cleanup():
-	"""Apply the retention policy from settings. Does nothing when retention is 0."""
+	"""Apply the retention policies from settings. A period of 0 keeps everything.
+
+	Conversations and the audit log have separate periods: an audit trail often has to be kept longer
+	(for example a year for NCA ECC) than people want their chats kept."""
 	settings = get_settings()
 	days = to_int(settings.retention_days)
-	if days <= 0:
-		return
-	cutoff = add_days(now_datetime(), -days)
-	old = frappe.get_all(
-		"AI Assistant Conversation",
-		filters={"modified": ("<", cutoff), "pinned": 0},
-		pluck="name",
-		limit=500,
-	)
-	for name in old:
-		delete_conversation_data(name)
-	frappe.db.delete("AI Assistant Tool Log", {"creation": ("<", cutoff)})
+	if days > 0:
+		cutoff = add_days(now_datetime(), -days)
+		old = frappe.get_all(
+			"AI Assistant Conversation",
+			filters={"modified": ("<", cutoff), "pinned": 0},
+			pluck="name",
+			limit=500,
+		)
+		for name in old:
+			delete_conversation_data(name)
+	audit_days = to_int(settings.get("audit_retention_days"))
+	if audit_days > 0:
+		frappe.db.delete("AI Assistant Tool Log", {"creation": ("<", add_days(now_datetime(), -audit_days))})
 
 
 def delete_conversation_data(name: str):
